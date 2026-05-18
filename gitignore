@@ -1,0 +1,92 @@
+# ============================================================
+# KAM Supply Intelligence Agent — .gitignore
+# ============================================================
+
+# ------------------------------------------------------------
+# Environment & secrets — NEVER commit these
+# ------------------------------------------------------------
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+secrets/
+
+# ------------------------------------------------------------
+# Python
+# ------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+.env/
+pythonenv*/
+
+# ------------------------------------------------------------
+# ChromaDB local storage
+# ------------------------------------------------------------
+chroma_db/
+chroma/
+*.chroma
+.chroma/
+
+# ------------------------------------------------------------
+# Jupyter Notebooks (if used for testing)
+# ------------------------------------------------------------
+.ipynb_checkpoints
+*.ipynb
+
+# ------------------------------------------------------------
+# IDE and editor files
+# ------------------------------------------------------------
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ------------------------------------------------------------
+# Logs and test output
+# ------------------------------------------------------------
+*.log
+logs/
+test_output/
+test_results/
+
+# ------------------------------------------------------------
+# Coverage and testing
+# ------------------------------------------------------------
+.coverage
+.pytest_cache/
+htmlcov/
+.tox/
+
+# ------------------------------------------------------------
+# n8n exports (may contain credentials)
+# ------------------------------------------------------------
+n8n_workflow_with_credentials.json
