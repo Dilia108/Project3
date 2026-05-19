@@ -13,12 +13,25 @@ Graph flow:
         ↓
   execute_sql ──(error)──→ generate_sql (retry, max 2)
         ↓ (success)
-  format_answer
+  format_answer  ← cost summary calculated here
+
+Cost tracking
+─────────────
+Every node that makes a billable call appends to state["usage"]:
+  {
+    "node":            str,   # which node recorded this
+    "prompt_tokens":   int,
+    "completion_tokens": int,
+    "model":           str,   # e.g. "gpt-4o-mini", "text-embedding-3-small"
+    "supabase_queries": int   # only in execute_sql
+  }
+
+format_answer applies current pricing and writes state["cost_summary"].
 """
 
 import os
 import json
-from typing import TypedDict, Optional
+from typing import TypedDict, Optional, List
 from dotenv import load_dotenv
 
 from langchain_openai import ChatOpenAI
@@ -34,6 +47,27 @@ llm = ChatOpenAI(
     temperature=0,
     openai_api_key=os.getenv("OPENAI_API_KEY"),
 )
+
+# ── Pricing (USD per 1 000 tokens, or per unit) ───────────────────────────────
+# Update these if OpenAI changes pricing.
+# Source: platform.openai.com/docs/pricing (May 2025)
+
+PRICING = {
+    "gpt-4o-mini": {
+        "prompt":     0.000150 / 1000,   # $0.150 per 1M input tokens
+        "completion": 0.000600 / 1000,   # $0.600 per 1M output tokens
+    },
+    "text-embedding-3-small": {
+        "prompt":     0.000020 / 1000,   # $0.020 per 1M tokens
+        "completion": 0.0,
+    },
+}
+
+# Supabase free tier: 500MB, 2 CPU — no per-query cost.
+# If you upgrade to Pro ($25/mo), divide by your expected monthly query volume
+# to get a per-query rate. Set to 0.0 for free tier.
+SUPABASE_COST_PER_QUERY = 0.0
+
 
 # ── Agent state ───────────────────────────────────────────────────────────────
 # Everything the graph carries from node to node.
@@ -64,6 +98,10 @@ class AgentState(TypedDict):
 
     # Populated by format_answer
     final_answer: Optional[str]          # formatted answer for Slack
+
+    # Cost tracking — each billable node appends one entry
+    usage: List[dict]                    # list of per-node usage records
+    cost_summary: Optional[dict]         # total cost breakdown, set by format_answer
 
 
 # ── Node 1: understand_question ───────────────────────────────────────────────
@@ -121,11 +159,21 @@ def understand_question(state: AgentState) -> AgentState:
     print(f"  → question_type:  {question_type}")
     print(f"  → intent_summary: {intent_summary}")
 
+    # Record token usage for this LLM call
+    usage_entry = {
+        "node":             "understand_question",
+        "model":            "gpt-4o-mini",
+        "prompt_tokens":    response.usage_metadata.get("input_tokens", 0),
+        "completion_tokens": response.usage_metadata.get("output_tokens", 0),
+    }
+    print(f"  → tokens: {usage_entry['prompt_tokens']} in / {usage_entry['completion_tokens']} out")
+
     return {
         **state,
         "client_name":    client_name,
         "question_type":  question_type,
         "intent_summary": intent_summary,
+        "usage":          state.get("usage", []) + [usage_entry],
     }
 
 
@@ -183,6 +231,24 @@ def retrieve_schema(state: AgentState) -> AgentState:
     #     n_results=3,
     # )
     # schema_context = "\n\n".join(results["documents"][0])
+    #
+    # ChromaDB uses text-embedding-3-small to embed the query text.
+    # Approximate token count from the query string length:
+    # embedding_tokens = len(state["intent_summary"].split()) * 1.3  (rough estimate)
+    # usage_entry = {
+    #     "node":             "retrieve_schema",
+    #     "model":            "text-embedding-3-small",
+    #     "prompt_tokens":    int(embedding_tokens),
+    #     "completion_tokens": 0,
+    # }
+
+    # STUB usage entry — replace token count with real value in Day 3
+    usage_entry = {
+        "node":             "retrieve_schema",
+        "model":            "text-embedding-3-small",
+        "prompt_tokens":    15,   # stub: typical query is ~15 tokens
+        "completion_tokens": 0,
+    }
 
     stub_context = """
 STUB schema context — ChromaDB retrieval not yet wired.
@@ -193,7 +259,11 @@ Tables available:
 - product (id, supplier_id, client_id, rate_type, route_source, route_destination, excess_type, net_rate, gross_rate)
 """.strip()
 
-    return {**state, "schema_context": stub_context}
+    return {
+        **state,
+        "schema_context": stub_context,
+        "usage": state.get("usage", []) + [usage_entry],
+    }
 
 
 # ── Node 4: generate_sql ──────────────────────────────────────────────────────
@@ -211,12 +281,29 @@ def generate_sql(state: AgentState) -> AgentState:
     print(f"  STUB (implement Day 3)")
 
     # TODO Sprint 2 Day 3: real SQL generation prompt
+    # response = llm.invoke([...])
+    # usage_entry = {
+    #     "node":             "generate_sql",
+    #     "model":            "gpt-4o-mini",
+    #     "prompt_tokens":    response.usage_metadata.get("input_tokens", 0),
+    #     "completion_tokens": response.usage_metadata.get("output_tokens", 0),
+    # }
+
+    # STUB usage entry
+    usage_entry = {
+        "node":             "generate_sql",
+        "model":            "gpt-4o-mini",
+        "prompt_tokens":    400,   # stub: schema context prompt is typically ~400 tokens
+        "completion_tokens": 80,   # stub: SQL output is typically ~80 tokens
+    }
+
     stub_sql = "SELECT s.name, COUNT(p.id) AS product_count FROM supplier s -- STUB"
 
     return {
         **state,
-        "sql_query": stub_sql,
-        "sql_error": None,  # reset error for this attempt
+        "sql_query":  stub_sql,
+        "sql_error":  None,
+        "usage":      state.get("usage", []) + [usage_entry],
     }
 
 
@@ -241,24 +328,118 @@ def execute_sql(state: AgentState) -> AgentState:
     # except Exception as e:
     #     return {**state, "sql_error": str(e), "retry_count": state.get("retry_count", 0) + 1}
 
+    # Track Supabase query execution (1 query per execute_sql call)
+    usage_entry = {
+        "node":              "execute_sql",
+        "model":             "supabase",
+        "prompt_tokens":     0,
+        "completion_tokens": 0,
+        "supabase_queries":  1,
+    }
+
     stub_result = [{"supplier": "STUB — Supabase not yet connected", "product_count": 0}]
-    return {**state, "sql_result": stub_result, "sql_error": None}
+    return {
+        **state,
+        "sql_result": stub_result,
+        "sql_error":  None,
+        "usage":      state.get("usage", []) + [usage_entry],
+    }
 
 
 # ── Node 6: format_answer ─────────────────────────────────────────────────────
+
+def _calculate_cost(usage: list) -> dict:
+    """
+    Walk the usage list and calculate total cost per component.
+    Returns a cost_summary dict with per-node breakdown and grand total.
+    """
+    total_cost   = 0.0
+    breakdown    = []
+    total_supabase_queries = 0
+
+    for entry in usage:
+        model  = entry.get("model", "unknown")
+        p_tok  = entry.get("prompt_tokens", 0)
+        c_tok  = entry.get("completion_tokens", 0)
+        sq     = entry.get("supabase_queries", 0)
+
+        if model in PRICING:
+            node_cost = (
+                p_tok * PRICING[model]["prompt"] +
+                c_tok * PRICING[model]["completion"]
+            )
+        else:
+            node_cost = 0.0
+
+        supabase_cost = sq * SUPABASE_COST_PER_QUERY
+        node_total    = node_cost + supabase_cost
+        total_cost   += node_total
+        total_supabase_queries += sq
+
+        breakdown.append({
+            "node":             entry["node"],
+            "model":            model,
+            "prompt_tokens":    p_tok,
+            "completion_tokens": c_tok,
+            "supabase_queries": sq,
+            "cost_usd":         round(node_total, 6),
+        })
+
+    return {
+        "breakdown":             breakdown,
+        "total_prompt_tokens":   sum(e["prompt_tokens"] for e in usage),
+        "total_completion_tokens": sum(e["completion_tokens"] for e in usage),
+        "total_supabase_queries": total_supabase_queries,
+        "total_cost_usd":        round(total_cost, 6),
+        "supabase_tier":         "free" if SUPABASE_COST_PER_QUERY == 0 else "pro",
+    }
+
 
 def format_answer(state: AgentState) -> AgentState:
     """
     Node 6 — Combine Salesforce client profile + Supabase SQL results
     into a clean, Slack-ready answer using the LLM.
-    STUB: returns a formatted placeholder until Sprint 2 Day 3.
+    Also calculates the cost summary for this entire agent run.
+    STUB: answer text is placeholder until Sprint 2 Day 3.
     """
     print(f"\n[Node 6] format_answer")
     print(f"  STUB (implement Day 3)")
 
-    # TODO Sprint 2 Day 3: real formatting prompt
+    # TODO Sprint 2 Day 3: real formatting LLM call — add its usage entry too:
+    # response = llm.invoke([...])
+    # format_usage = {
+    #     "node":             "format_answer",
+    #     "model":            "gpt-4o-mini",
+    #     "prompt_tokens":    response.usage_metadata.get("input_tokens", 0),
+    #     "completion_tokens": response.usage_metadata.get("output_tokens", 0),
+    # }
+    # usage = state.get("usage", []) + [format_usage]
+
+    # STUB: no real LLM call yet, use existing usage list
+    usage = state.get("usage", [])
+
+    # ── Build answer ──────────────────────────────────────────────────────────
     sf   = state.get("salesforce_data", {})
     rows = state.get("sql_result", [])
+
+    # ── Calculate cost ────────────────────────────────────────────────────────
+    cost_summary = _calculate_cost(usage)
+
+    print(f"  → Total cost:    ${cost_summary['total_cost_usd']:.6f}")
+    print(f"  → Total tokens:  {cost_summary['total_prompt_tokens']} in / "
+          f"{cost_summary['total_completion_tokens']} out")
+    print(f"  → Supabase queries: {cost_summary['total_supabase_queries']} "
+          f"({cost_summary['supabase_tier']} tier)")
+
+    # Cost footer for Slack answer
+    cost_line = (
+        f"💰 *Query cost:* ${cost_summary['total_cost_usd']:.6f} | "
+        f"{cost_summary['total_prompt_tokens']}↑ "
+        f"{cost_summary['total_completion_tokens']}↓ tokens | "
+        f"{cost_summary['total_supabase_queries']} Supabase "
+        f"{'query' if cost_summary['total_supabase_queries'] == 1 else 'queries'} "
+        f"({cost_summary['supabase_tier']} tier)"
+    )
 
     answer = (
         f"*Client:* {sf.get('Name', 'N/A')} ← from Salesforce\n"
@@ -267,10 +448,16 @@ def format_answer(state: AgentState) -> AgentState:
         f"Contract status: {sf.get('Active__c', 'N/A')}\n"
         f"KAM: {sf.get('Owner', {}).get('Name', 'N/A')}\n\n"
         f"*Operational data (Supabase):*\n{json.dumps(rows, indent=2)}\n\n"
-        f"_(STUB — full formatting implemented Day 3)_"
+        f"_(STUB — full formatting implemented Day 3)_\n\n"
+        f"{cost_line}"
     )
 
-    return {**state, "final_answer": answer}
+    return {
+        **state,
+        "usage":        usage,
+        "cost_summary": cost_summary,
+        "final_answer": answer,
+    }
 
 
 # ── Routing logic ─────────────────────────────────────────────────────────────
@@ -347,6 +534,8 @@ def run_agent(question: str) -> dict:
         "sql_error":         None,
         "retry_count":       0,
         "final_answer":      None,
+        "usage":             [],
+        "cost_summary":      None,
     }
 
     final_state = app.invoke(initial_state)
@@ -371,3 +560,14 @@ if __name__ == "__main__":
         print(f"  client_name:   {result['client_name']}")
         print(f"  question_type: {result['question_type']}")
         print(f"  intent:        {result['intent_summary']}")
+        print(f"\n── COST SUMMARY ──")
+        cs = result.get("cost_summary", {})
+        for row in cs.get("breakdown", []):
+            print(f"  {row['node']:<30} {row['model']:<26} "
+                  f"{row['prompt_tokens']:>5}↑ {row['completion_tokens']:>4}↓ tokens  "
+                  f"sq:{row['supabase_queries']}  ${row['cost_usd']:.6f}")
+        print(f"  {'TOTAL':<30} {'':26} "
+              f"{cs.get('total_prompt_tokens',0):>5}↑ "
+              f"{cs.get('total_completion_tokens',0):>4}↓ tokens  "
+              f"sq:{cs.get('total_supabase_queries',0)}  "
+              f"${cs.get('total_cost_usd',0):.6f}")
