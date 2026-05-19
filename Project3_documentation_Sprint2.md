@@ -1099,3 +1099,311 @@ All acceptance criteria passed:
 * ✅ Retry branch wired and confirmed working from the previous run
 
 * The SQL quality is notably good — Q3 correctly filters product_type = 'inbound' AND source_country = 'DE', and returns both net and gross rate codes for Check24 (KE/KF, KG, IV/IW) which is exactly right for a commissionable client.
+
+
+## US-09 — Combine Salesforce and Supabase format: agent_format_answer.py
+
+### Results:
+
+---
+
+[Node 1] understand_question
+  Question: How many suppliers does Check24 have?
+  → client_name:    Check24
+  → question_type:  supplier_count
+  → intent_summary: The KAM wants to know the number of suppliers associated with Check24.
+  → tokens: 196 in / 41 out
+
+[Node 2] fetch_salesforce_client
+  Client: Check24
+  ✓ Found in Salesforce:
+    business_model:  Commissionable
+    account_tier:    Strategic
+    contract_status: Active
+    kam:             Dilia Navarro
+
+[Node 3] retrieve_schema
+  Query: The KAM wants to know the number of suppliers associated with Check24.
+  ✓ Retrieved 3 documents:
+    query_patterns  (distance: 1.1327)
+    table_product  (distance: 1.1517)
+    table_client_supplier  (distance: 1.2517)
+  → embedding tokens (est.): 17
+
+[Node 4] generate_sql
+  → SQL: SELECT COUNT(DISTINCT cs.supplier_id) as supplier_count
+FROM client_supplier cs
+WHERE cs.client_name = 'Check24' AND cs....
+  → tokens: 1420 in / 35 out
+
+[Node 5] execute_sql
+  SQL: SELECT COUNT(DISTINCT cs.supplier_id) as supplier_count
+FROM client_supplier cs
+WHERE cs.client_name = 'Check24' AND cs....
+  ✓ Query returned 1 row(s)
+  → Sample: {"supplier_count": 3}
+
+[Node 6] format_answer
+  → Total cost:    $0.000288
+  → Total tokens:  1633 in / 76 out
+  → Supabase queries: 1 (free tier)
+
+── FINAL ANSWER ──
+┌─ CLIENT PROFILE (Salesforce) ────────────────────────────┐
+  Client:          Check24
+  Account Tier:    Strategic
+  Business Model:  Commissionable
+  Contract Status: Active
+  KAM:             Dilia Navarro
+└───────────────────────────────────────────────────────────┘
+
+┌─ OPERATIONAL DATA (Supabase) ─────────────────────────────┐
+  Total active suppliers: 3
+└───────────────────────────────────────────────────────────┘
+
+┌─ SQL EXECUTED ────────────────────────────────────────────┐
+  SELECT COUNT(DISTINCT cs.supplier_id) as supplier_count
+FROM client_supplier cs
+WHERE cs.client_name = 'Check24' AND cs.status = 'active'
+└───────────────────────────────────────────────────────────┘
+
+💰 Query cost: $0.000288 | 1633↑ 76↓ tokens | 1 Supabase query (free tier)
+⚠️  Answers based on mock data.
+
+── SCHEMA RETRIEVED ──
+  query_patterns
+  table_product
+  table_client_supplier
+
+── PARSED INTENT ──
+  client_name:   Check24
+  question_type: supplier_count
+  intent:        The KAM wants to know the number of suppliers associated with Check24.
+
+── COST SUMMARY ──
+  understand_question            gpt-4o-mini                  196↑   41↓ tokens  sq:0  $0.000054
+  retrieve_schema                text-embedding-3-small        17↑    0↓ tokens  sq:0  $0.000000
+  generate_sql                   gpt-4o-mini                 1420↑   35↓ tokens  sq:0  $0.000234
+  execute_sql                    supabase                       0↑    0↓ tokens  sq:1  $0.000000
+  TOTAL                                                      1633↑   76↓ tokens  sq:1  $0.000288
+
+---
+
+[Node 1] understand_question
+  Question: Which products does Avis have connected to Autoslash?
+  → client_name:    Autoslash
+  → question_type:  product_list
+  → intent_summary: The KAM wants to know about the products offered by Avis for Autoslash.
+  → tokens: 198 in / 42 out
+
+[Node 2] fetch_salesforce_client
+  Client: Autoslash
+  ✓ Found in Salesforce:
+    business_model:  Wholesaler
+    account_tier:    Growth
+    contract_status: Active
+    kam:             Dilia Navarro
+
+[Node 3] retrieve_schema
+  Query: The KAM wants to know about the products offered by Avis for Autoslash.
+  ✓ Retrieved 3 documents:
+    glossary_rate_codes  (distance: 1.1578)
+    glossary_clients  (distance: 1.2885)
+    query_patterns  (distance: 1.3529)
+  → embedding tokens (est.): 17
+
+[Node 4] generate_sql
+  → SQL: SELECT p.rate_code, p.rate_type, p.product_type, p.source_country, p.destination_country
+FROM product p
+JOIN supplier s ...
+  → tokens: 1607 in / 60 out
+
+[Node 5] execute_sql
+  SQL: SELECT p.rate_code, p.rate_type, p.product_type, p.source_country, p.destination_country
+FROM product p
+JOIN supplier s ...
+  ✓ Query returned 3 row(s)
+  → Sample: {"rate_code": "AJ", "rate_type": "net", "product_type": "domestic_us", "source_country": "US", "destination_country": "US"}
+
+[Node 6] format_answer
+  → Total cost:    $0.000332
+  → Total tokens:  1822 in / 102 out
+  → Supabase queries: 1 (free tier)
+
+── FINAL ANSWER ──
+┌─ CLIENT PROFILE (Salesforce) ────────────────────────────┐
+  Client:          Autoslash
+  Account Tier:    Growth
+  Business Model:  Wholesaler
+  Contract Status: Active
+  KAM:             Dilia Navarro
+└───────────────────────────────────────────────────────────┘
+
+┌─ OPERATIONAL DATA (Supabase) ─────────────────────────────┐
+  Rate Code    Type     Product        Route
+  ------------ -------- -------------- --------------------
+  AJ           net      domestic_us    US → US
+  AK           net      inbound        DE → ES
+  AL           net      inbound        DE → IT
+└───────────────────────────────────────────────────────────┘
+
+┌─ SQL EXECUTED ────────────────────────────────────────────┐
+  SELECT p.rate_code, p.rate_type, p.product_type, p.source_country, p.destination_country
+FROM product p
+JOIN supplier s ON s.id = p.supplier_id
+WHERE p.client_name = 'Autoslash' AND s.name = 'Avis' AND p.status = 'active'
+└───────────────────────────────────────────────────────────┘
+
+💰 Query cost: $0.000332 | 1822↑ 102↓ tokens | 1 Supabase query (free tier)
+⚠️  Answers based on mock data.
+
+── SCHEMA RETRIEVED ──
+  glossary_rate_codes
+  glossary_clients
+  query_patterns
+
+── PARSED INTENT ──
+  client_name:   Autoslash
+  question_type: product_list
+  intent:        The KAM wants to know about the products offered by Avis for Autoslash.
+
+── COST SUMMARY ──
+  understand_question            gpt-4o-mini                  198↑   42↓ tokens  sq:0  $0.000055
+  retrieve_schema                text-embedding-3-small        17↑    0↓ tokens  sq:0  $0.000000
+  generate_sql                   gpt-4o-mini                 1607↑   60↓ tokens  sq:0  $0.000277
+  execute_sql                    supabase                       0↑    0↓ tokens  sq:1  $0.000000
+  TOTAL                                                      1822↑  102↓ tokens  sq:1  $0.000332
+
+---
+
+[Node 1] understand_question
+  Question: What are the details of Check24's inbound products from Germany?
+  → client_name:    Check24
+  → question_type:  product_details
+  → intent_summary: The KAM wants to know the details of Check24's inbound products from Germany.
+  → tokens: 201 in / 43 out
+
+[Node 2] fetch_salesforce_client
+  Client: Check24
+  ✓ Found in Salesforce:
+    business_model:  Commissionable
+    account_tier:    Strategic
+    contract_status: Active
+    kam:             Dilia Navarro
+
+[Node 3] retrieve_schema
+  Query: The KAM wants to know the details of Check24's inbound products from Germany.
+  ✓ Retrieved 3 documents:
+    table_product  (distance: 1.1585)
+    query_patterns  (distance: 1.1945)
+    glossary_rate_codes  (distance: 1.2594)
+  → embedding tokens (est.): 19
+
+[Node 4] generate_sql
+  → SQL: SELECT p.rate_code, p.rate_type, s.name as supplier, p.source_country, p.destination_country
+FROM product p
+JOIN supplie...
+  → tokens: 1726 in / 71 out
+
+[Node 5] execute_sql
+  SQL: SELECT p.rate_code, p.rate_type, s.name as supplier, p.source_country, p.destination_country
+FROM product p
+JOIN supplie...
+  ✓ Query returned 5 row(s)
+  → Sample: {"rate_code": "KE", "rate_type": "net", "supplier": "Avis", "source_country": "DE", "destination_country": "ES"}
+
+[Node 6] format_answer
+  → Total cost:    $0.000358
+  → Total tokens:  1946 in / 114 out
+  → Supabase queries: 1 (free tier)
+  → CSV exported: ./exports\Check24_product_details_2026-05-19.csv
+
+── FINAL ANSWER ──
+┌─ CLIENT PROFILE (Salesforce) ────────────────────────────┐
+  Client:          Check24
+  Account Tier:    Strategic
+  Business Model:  Commissionable
+  Contract Status: Active
+  KAM:             Dilia Navarro
+└───────────────────────────────────────────────────────────┘
+
+┌─ OPERATIONAL DATA (Supabase) ─────────────────────────────┐
+  Rate Code    Type     Supplier     Route
+  ------------ -------- ------------ --------------------
+  KE           net      Avis         DE → ES
+  KF           gross    Avis         DE → ES
+  KG           net      Avis         DE → IT
+  IV           net      Hertz        DE → FR
+  IW           gross    Hertz        DE → FR
+└───────────────────────────────────────────────────────────┘
+
+┌─ SQL EXECUTED ────────────────────────────────────────────┐
+  SELECT p.rate_code, p.rate_type, s.name as supplier, p.source_country, p.destination_country
+FROM product p
+JOIN supplier s ON s.id = p.supplier_id
+WHERE p.client_name = 'Check24' AND p.product_type = 'inbound' AND p.source_country = 'DE' AND p.status = 'active'
+└───────────────────────────────────────────────────────────┘
+
+💰 Query cost: $0.000358 | 1946↑ 114↓ tokens | 1 Supabase query (free tier)
+⚠️  Answers based on mock data.
+
+── CSV EXPORTED ──
+  ./exports\Check24_product_details_2026-05-19.csv
+
+── SCHEMA RETRIEVED ──
+  table_product
+  query_patterns
+  glossary_rate_codes
+
+── PARSED INTENT ──
+  client_name:   Check24
+  question_type: product_details
+  intent:        The KAM wants to know the details of Check24's inbound products from Germany.
+
+── COST SUMMARY ──
+  understand_question            gpt-4o-mini                  201↑   43↓ tokens  sq:0  $0.000056
+  retrieve_schema                text-embedding-3-small        19↑    0↓ tokens  sq:0  $0.000000
+  generate_sql                   gpt-4o-mini                 1726↑   71↓ tokens  sq:0  $0.000302
+  execute_sql                    supabase                       0↑    0↓ tokens  sq:1  $0.000000
+  TOTAL                                                      1946↑  114↓ tokens  sq:1  $0.000358
+
+---
+
+[Node 1] understand_question
+  Question: How many suppliers does Booking.com have?
+  → client_name:    None
+  → question_type:  supplier_count
+  → intent_summary: The KAM wants to know the number of suppliers associated with Booking.com.
+  → tokens: 196 in / 39 out
+  WARNING: Client not recognised — short-circuiting to END
+  → No client name — short-circuiting to END
+
+── FINAL ANSWER ──
+I couldn't identify the client in your question.
+The clients I currently support are: *Check24*, *Autoslash*, and *HappyCar*.
+Please check the name and try again.
+
+── SCHEMA RETRIEVED ──
+
+── PARSED INTENT ──
+  client_name:   None
+  question_type: supplier_count
+  intent:        The KAM wants to know the number of suppliers associated with Booking.com.
+
+  ---
+
+
+### Summary of response:
+
+* Acceptance criteria passed:
+
+- ✅ Salesforce profile section present in every answer
+- ✅ Supabase operational data formatted correctly for all 3 question types
+- ✅ SQL executed shown in every answer (transparency requirement)
+- ✅ All 3 question types return correct combined answers — supplier count 3, Avis/Autoslash 3 rows (no duplicates), Check24 inbound 5 rows (net + gross pairs correct)
+- ✅ CSV exported for Q3 to ./exports/Check24_product_details_2026-05-19.csv
+
+* CSV file:
+![check24_csv](screenshots/image-14.png)
+
+* => **The full agent pipeline is live end-to-end* — Salesforce → ChromaDB → Supabase → structured answer — at ~$0.000300 per query.

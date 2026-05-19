@@ -1,0 +1,19 @@
+# KAM Supply Intelligence Agent — Export
+# Date: 2026-05-19
+# Question: What are the details of Check24's inbound products from Germany?
+#
+# CLIENT PROFILE (Salesforce)
+# Client:          Check24
+# Account Tier:    Strategic
+# Business Model:  Commissionable
+# Contract Status: Active
+# KAM:             Dilia Navarro
+#
+"# SQL: SELECT p.rate_code, p.rate_type, s.name as supplier, p.source_country, p.destination_country FROM product p JOIN supplier s ON s.id = p.supplier_id WHERE p.client_name = 'Check24' AND p.product_type = 'inbound' AND p.source_country = 'DE' AND p.status = 'active'"
+#
+rate_code,rate_type,supplier,source_country,destination_country
+KE,net,Avis,DE,ES
+KF,gross,Avis,DE,ES
+KG,net,Avis,DE,IT
+IV,net,Hertz,DE,FR
+IW,gross,Hertz,DE,FR
