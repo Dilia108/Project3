@@ -88,21 +88,23 @@ Creating SF's accounts:
 | Contract Status   | Active           | Yes = Active, No = Inactive                                            |
 | Assigned KAM      | Account Owner    | Dilia Navarro (auto-filled)                                            |
 
-Creating tables in SQL:
+* Creating tables in SQL:
+
 ![Supplier_Master_Table](screenshots/image-6.png)
 
 ![Client-Supplier_Relationship_table](screenshots/image-7.png)
 
 ![Product with supplier and rate details](screenshots/image-8.png)
 
-Filling Database with fake values using: `db_setup.py`
 
-Result: 
+* Filling Database with fake values using: `db_setup.py`
 
-============================================================
+**Result:** 
+
+---
 KAM Agent — Supabase Database Setup
 Clients: Check24 (commissionable) | Autoslash (wholesaler) | HappyCar (commissionable, inactive)
-============================================================
+---
 
 [1] Creating tables...
   → If RPC fails, run the DDL below manually in
@@ -206,16 +208,16 @@ CREATE TABLE IF NOT EXISTS product (
 Setup complete. Database is ready for the agent.
 ============================================================
 
-* The RPC warnings are expected and harmless — the tables were already created manually. Everything else is 100% correct:
+* The **RPC warnings** are expected and harmless — the tables were already created manually. Everything else is 100% correct:
 
-✅ 5 suppliers seeded
-✅ 8 client-supplier connections
-✅ 23 rate codes seeded
-✅ Check24 confirmed commissionable (net + gross)
-✅ Autoslash confirmed wholesaler (net only)
-✅ HappyCar confirmed commissionable but inactive
+- ✅ 5 suppliers seeded
+- ✅ 8 client-supplier connections
+- ✅ 23 rate codes seeded
+- ✅ Check24 confirmed commissionable (net + gross)
+- ✅ Autoslash confirmed wholesaler (net only)
+- ✅ HappyCar confirmed commissionable but inactive
 
-* Testing both SQL and SalesForce: `SF_SQL_testing.py`
+* **Testing both SQL and SalesForce:** `SF_SQL_testing.py`
 
 * Results:
 ✓ Salesforce — Check24 found:
@@ -245,11 +247,12 @@ Setup complete. Database is ready for the agent.
 
 ### Creating RAG:`seed_rag.py `
 
-* Results:
-============================================================
+* **Results:**
+
+---
 KAM Agent — ChromaDB RAG Store Seeding
 Clients: Check24 | Autoslash | HappyCar
-============================================================
+---
 
 [1] Connecting to ChromaDB...
 Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
@@ -281,20 +284,21 @@ Failed to send telemetry event CollectionQueryEvent: capture() takes 1 positiona
   ✓ 'What are inbound products?' → glossary_product_types
   ✓ 'What domestic US rates does Check24 have?' → table_product
 
-============================================================
+---
 Complete. 8 documents seeded into ChromaDB.
 Local storage: ./chroma_db/
-============================================================
+---
 
-Summary:
-The "Failed to send telemetry" messages are harmless — just ChromaDB trying to send anonymous usage stats and failing, which is actually fine for privacy. Everything that matters worked perfectly.
-All 8 documents seeded and all 7 retrieval queries returning correct results:
+* **Summary:**
+- The "Failed to send telemetry" messages are harmless — just ChromaDB trying to send anonymous usage stats and failing, which is actually fine for privacy. 
+- Everything that matters worked perfectly.
+- All 8 documents seeded and all 7 retrieval queries returning correct results:
 
-✅ Rate code questions → glossary_rate_codes
-✅ Net/gross questions → glossary_business_models
-✅ Supplier connection questions → table_client_supplier
-✅ Inbound product questions → glossary_product_types
-✅ Domestic US questions → table_product
+- ✅ Rate code questions → glossary_rate_codes
+- ✅ Net/gross questions → glossary_business_models
+- ✅ Supplier connection questions → table_client_supplier
+- ✅ Inbound product questions → glossary_product_types
+- ✅ Domestic US questions → table_product
 
 
 ### First Sprint Done!:
