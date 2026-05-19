@@ -79,12 +79,13 @@ Creating SF's accounts:
 ![SF_accounts](screenshots/image-5.png)
 
 * **Mapping:**
-Our field |Salesforce field| Values
-Client ID |Account Number| 1001, 1002, 1003
-Account Tier |Customer Priority| High = Strategic, Medium = Growth, Low = Standard
-Business Model| Type | Channel Partner = Commissionable, Technology Partner = Wholesaler
-Contract Status| Active| Yes = Active, No = Inactive
-Assigned KAM| Account Owner |Dilia Navarro (auto-filled)
+| Our field |Salesforce field| Values|
+|---|---|---|
+|Client ID |Account Number| 1001, 1002, 1003|
+|Account Tier |Customer Priority| High = Strategic, Medium = Growth, Low = Standard|
+|Business Model| Type | Channel Partner = Commissionable, Technology Partner = Wholesaler|
+|Contract Status| Active| Yes = Active, No = Inactive|
+|Assigned KAM| Account Owner |Dilia Navarro (auto-filled)|
 
 Creating tables in SQL:
 ![Supplier_Master_Table](screenshots/image-6.png)
