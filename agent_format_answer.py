@@ -31,7 +31,8 @@ Graph flow — ALL NODES LIVE:
 """
 
 import os
-import csv
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 import json
 from datetime import date
 from typing import TypedDict, Optional, List
@@ -252,7 +253,7 @@ def fetch_salesforce_client(state: AgentState) -> AgentState:
             session_id=token_data["access_token"],
         )
         soql = (
-            f"SELECT Name, Type, CustomerPriority__c, Active__c, Owner.Name "
+            f"SELECT Name, AccountNumber, Type, CustomerPriority__c, Active__c, Owner.Name "
             f"FROM Account WHERE Name = '{client_name}' LIMIT 1"
         )
         result = sf.query(soql)
@@ -261,6 +262,7 @@ def fetch_salesforce_client(state: AgentState) -> AgentState:
         raw = result["records"][0]
         return {
             "Name":            raw.get("Name"),
+            "account_number":  raw.get("AccountNumber", "N/A"),
             "Type":            raw.get("Type"),
             "business_model":  SF_TYPE_MAP.get(raw.get("Type", ""), raw.get("Type", "N/A")),
             "account_tier":    SF_PRIORITY_MAP.get(raw.get("CustomerPriority__c", ""), raw.get("CustomerPriority__c", "N/A")),
@@ -475,7 +477,8 @@ def execute_sql(state: AgentState) -> AgentState:
             os.getenv("SUPABASE_URL"),
             os.getenv("SUPABASE_KEY"),
         )
-        result = supabase.rpc("execute_sql", {"query": sql}).execute()
+        sql_clean = sql.strip().rstrip(";")
+        result = supabase.rpc("execute_sql", {"query": sql_clean}).execute()
         rows   = result.data if result.data else []
 
         print(f"  ✓ Query returned {len(rows)} row(s)")
@@ -592,10 +595,11 @@ def _format_rows(rows: list, question_type: str) -> str:
     return "\n".join(lines)
 
 
-def _write_csv(state: AgentState, sf: dict, rows: list) -> str:
+def _write_xlsx(state: AgentState, sf: dict, rows: list) -> str:
     """
-    Write Supabase results to a CSV file in ./exports/.
-    Salesforce profile is written as comment rows at the top (# prefix).
+    Write a two-sheet Excel file to ./exports/:
+      Sheet 1 — Client Profile: Salesforce summary card + query metadata
+      Sheet 2 — Products:       clean data table, ready to filter in Excel
     Returns the file path.
     """
     os.makedirs(EXPORT_DIR, exist_ok=True)
@@ -603,39 +607,193 @@ def _write_csv(state: AgentState, sf: dict, rows: list) -> str:
     client_name   = (state.get("client_name") or "unknown").replace(" ", "_")
     question_type = state.get("question_type") or "query"
     today         = date.today().isoformat()
-    filename      = f"{client_name}_{question_type}_{today}.csv"
+    filename      = f"{client_name}_{question_type}_{today}.xlsx"
     filepath      = os.path.join(EXPORT_DIR, filename)
 
-    with open(filepath, "w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
+    wb = openpyxl.Workbook()
 
-        # ── Salesforce profile header ─────────────────────────────────────────
-        writer.writerow(["# KAM Supply Intelligence Agent — Export"])
-        writer.writerow([f"# Date: {today}"])
-        writer.writerow([f"# Question: {state.get('question', '')}"])
-        writer.writerow(["#"])
-        writer.writerow(["# CLIENT PROFILE (Salesforce)"])
-        if sf:
-            writer.writerow([f"# Client:          {sf.get('Name', 'N/A')}"])
-            writer.writerow([f"# Account Tier:    {sf.get('account_tier', 'N/A')}"])
-            writer.writerow([f"# Business Model:  {sf.get('business_model', 'N/A')}"])
-            writer.writerow([f"# Contract Status: {sf.get('contract_status', 'N/A')}"])
-            writer.writerow([f"# KAM:             {sf.get('kam', 'N/A')}"])
-        else:
-            writer.writerow(["# Client profile unavailable (Salesforce error)"])
-        writer.writerow(["#"])
-        writer.writerow([f"# SQL: {state.get('sql_query', '').replace(chr(10), ' ')}"])
-        writer.writerow(["#"])
+    # ── Shared styles ─────────────────────────────────────────────────────────
+    DARK_BLUE   = "1F3864"
+    MID_BLUE    = "2E75B6"
+    LIGHT_BLUE  = "D6E4F0"
+    LIGHT_GREY  = "F2F2F2"
+    WHITE       = "FFFFFF"
 
-        # ── Data rows ─────────────────────────────────────────────────────────
-        if rows:
-            writer.writerow(list(rows[0].keys()))   # header
-            for row in rows:
-                writer.writerow(list(row.values()))
-        else:
-            writer.writerow(["No data returned"])
+    def header_font(bold=True, color=WHITE, size=11):
+        return Font(bold=bold, color=color, size=size)
 
-    print(f"  → CSV exported: {filepath}")
+    def fill(hex_color):
+        return PatternFill("solid", fgColor=hex_color)
+
+    def border():
+        side = Side(style="thin", color="BFBFBF")
+        return Border(left=side, right=side, top=side, bottom=side)
+
+    def center():
+        return Alignment(horizontal="center", vertical="center")
+
+    def left():
+        return Alignment(horizontal="left", vertical="center", wrap_text=True)
+
+    # ── Sheet 1: Client Profile ───────────────────────────────────────────────
+    ws1 = wb.active
+    ws1.title = "Client Profile"
+    ws1.column_dimensions["A"].width = 22
+    ws1.column_dimensions["B"].width = 42
+
+    def profile_row(ws, label, value, row_idx, label_bold=False):
+        lc = ws.cell(row=row_idx, column=1, value=label)
+        vc = ws.cell(row=row_idx, column=2, value=value)
+        lc.font   = Font(bold=label_bold, size=10, color="374151")
+        vc.font   = Font(size=10, color="0F172A")
+        lc.fill   = fill(LIGHT_GREY)
+        vc.fill   = fill(WHITE)
+        lc.border = border()
+        vc.border = border()
+        lc.alignment = left()
+        vc.alignment = left()
+        ws.row_dimensions[row_idx].height = 18
+
+    # Title row
+    ws1.merge_cells("A1:B1")
+    title_cell = ws1["A1"]
+    title_cell.value     = "KAM Supply Intelligence Agent — Client Profile"
+    title_cell.font      = header_font(size=12)
+    title_cell.fill      = fill(DARK_BLUE)
+    title_cell.alignment = center()
+    ws1.row_dimensions[1].height = 28
+
+    # Metadata
+    ws1.merge_cells("A2:B2")
+    meta = ws1["A2"]
+    meta.value     = f"Export date: {today}   |   Question: {state.get('question', '')}"
+    meta.font      = Font(size=9, italic=True, color="6B7280")
+    meta.fill      = fill(LIGHT_GREY)
+    meta.alignment = left()
+    ws1.row_dimensions[2].height = 16
+
+    # Section header
+    ws1.merge_cells("A3:B3")
+    sh = ws1["A3"]
+    sh.value     = "CLIENT PROFILE  (Salesforce)"
+    sh.font      = header_font(size=10, color=WHITE)
+    sh.fill      = fill(MID_BLUE)
+    sh.alignment = left()
+    ws1.row_dimensions[3].height = 20
+
+    # Profile fields
+    r = 4
+    if sf:
+        for label, key in [
+            ("Client",          "Name"),
+            ("Client ID",       "account_number"),
+            ("Account Tier",    "account_tier"),
+            ("Business Model",  "business_model"),
+            ("Contract Status", "contract_status"),
+            ("KAM",             "kam"),
+        ]:
+            profile_row(ws1, label, sf.get(key, "N/A"), r, label_bold=True)
+            r += 1
+    else:
+        ws1.merge_cells(f"A{r}:B{r}")
+        c = ws1[f"A{r}"]
+        c.value = "Client profile unavailable (Salesforce error)"
+        c.font  = Font(italic=True, color="DC2626", size=10)
+        r += 1
+
+    # SQL section header
+    r += 1
+    ws1.merge_cells(f"A{r}:B{r}")
+    sq_h = ws1[f"A{r}"]
+    sq_h.value     = "SQL EXECUTED"
+    sq_h.font      = header_font(size=10, color=WHITE)
+    sq_h.fill      = fill(MID_BLUE)
+    sq_h.alignment = left()
+    ws1.row_dimensions[r].height = 20
+    r += 1
+
+    sql_text = (state.get("sql_query") or "N/A").replace("\n", " ")
+    ws1.merge_cells(f"A{r}:B{r}")
+    sq_v = ws1[f"A{r}"]
+    sq_v.value     = sql_text
+    sq_v.font      = Font(size=9, color="374151", name="Courier New")
+    sq_v.fill      = fill(LIGHT_GREY)
+    sq_v.alignment = left()
+    ws1.row_dimensions[r].height = 32
+    r += 1
+
+    # Cost footer
+    r += 1
+    cs = state.get("cost_summary") or {}
+    ws1.merge_cells(f"A{r}:B{r}")
+    cf = ws1[f"A{r}"]
+    cf.value = (
+        f"Query cost: ${cs.get('total_cost_usd', 0):.6f}  |  "
+        f"{cs.get('total_prompt_tokens', 0)}↑ {cs.get('total_completion_tokens', 0)}↓ tokens  |  "
+        f"⚠ Answers based on mock data."
+    )
+    cf.font      = Font(size=9, italic=True, color="6B7280")
+    cf.fill      = fill(LIGHT_GREY)
+    cf.alignment = left()
+
+    # ── Sheet 2: Products ─────────────────────────────────────────────────────
+    ws2 = wb.create_sheet(title="Products")
+
+    if rows:
+        headers = list(rows[0].keys())
+
+        # Set column widths
+        col_widths = {"rate_code": 14, "rate_type": 12, "supplier": 14,
+                      "product_type": 16, "source_country": 16,
+                      "destination_country": 20, "count": 12}
+        for i, h in enumerate(headers, 1):
+            ws2.column_dimensions[openpyxl.utils.get_column_letter(i)].width = col_widths.get(h, 16)
+
+        # Header row
+        for col, h in enumerate(headers, 1):
+            c = ws2.cell(row=1, column=col, value=h.replace("_", " ").title())
+            c.font      = header_font(size=10, color=WHITE)
+            c.fill      = fill(DARK_BLUE)
+            c.alignment = center()
+            c.border    = border()
+        ws2.row_dimensions[1].height = 22
+
+        # Data rows with alternating fill
+        for row_idx, row in enumerate(rows, 2):
+            row_fill = fill(LIGHT_BLUE) if row_idx % 2 == 0 else fill(WHITE)
+            for col, key in enumerate(headers, 1):
+                c = ws2.cell(row=row_idx, column=col, value=row.get(key, ""))
+                c.font      = Font(size=10, color="0F172A")
+                c.fill      = row_fill
+                c.border    = border()
+                c.alignment = center()
+            ws2.row_dimensions[row_idx].height = 18
+
+        # Freeze header row and enable autofilter
+        ws2.freeze_panes = "A2"
+        ws2.auto_filter.ref = ws2.dimensions
+
+        # Client info header above the table
+        ws2.insert_rows(1)
+        ws2.merge_cells(f"A1:{openpyxl.utils.get_column_letter(len(headers))}1")
+        ci = ws2["A1"]
+        ci.value = (
+            f"{sf.get('Name', 'N/A')} (ID: {sf.get('account_number', 'N/A')})  |  "
+            f"{sf.get('account_tier', 'N/A')}  |  "
+            f"{sf.get('business_model', 'N/A')}  |  "
+            f"KAM: {sf.get('kam', 'N/A')}"
+        ) if sf else "Client profile unavailable"
+        ci.font      = Font(bold=True, size=10, color=WHITE)
+        ci.fill      = fill(MID_BLUE)
+        ci.alignment = left()
+        ws2.row_dimensions[1].height = 20
+
+    else:
+        ws2["A1"] = "No data returned for this query."
+        ws2["A1"].font = Font(italic=True, color="6B7280")
+
+    wb.save(filepath)
+    print(f"  → XLSX exported: {filepath}")
     return filepath
 
 
@@ -664,7 +822,7 @@ def format_answer(state: AgentState) -> AgentState:
     if sf:
         sf_section = (
             f"┌─ CLIENT PROFILE (Salesforce) {'─' * 28}┐\n"
-            f"  Client:          {sf.get('Name', 'N/A')}\n"
+            f"  Client:          {sf.get('Name', 'N/A')} (ID: {sf.get('account_number', 'N/A')})\n"
             f"  Account Tier:    {sf.get('account_tier', 'N/A')}\n"
             f"  Business Model:  {sf.get('business_model', 'N/A')}\n"
             f"  Contract Status: {sf.get('contract_status', 'N/A')}\n"
@@ -708,7 +866,7 @@ def format_answer(state: AgentState) -> AgentState:
     # ── Optional CSV export ───────────────────────────────────────────────────
     csv_path = None
     if state.get("export_csv") and rows:
-        csv_path = _write_csv(state, sf, rows)
+        csv_path = _write_xlsx(state, sf, rows)
 
     return {
         **state,
@@ -788,7 +946,7 @@ def run_agent(question: str, export_csv: bool = False) -> dict:
         "sql_error":         None,
         "retry_count":       0,
         "final_answer":      None,
-        "csv_path":          None,
+        "csv_path":          None,   # .xlsx path if exported
         "usage":             [],
         "cost_summary":      None,
     }
