@@ -248,6 +248,16 @@ Setup complete. Database is ready for the agent.
 
 ### Creating RAG:`seed_rag.py `
 
+* **What it does:**
+
+- Stores 8 text documents in a collection called `kam_schema_store`split into two types:
+
+- **Schema docs** : one per Supabase table (supplier, client_supplier, product). Each document describes what the table contains, what every column means, and the correct JOIN pattern to use. This is what prevents the agent from inventing column names that don't exist.
+
+- **Glossary docs**: business knowledge written in plain English: what rate codes are, what net vs gross means, what commissionable vs wholesaler means, what inbound/domestic means, plus ready-made SQL query patterns for the 7 most common KAM questions.
+
+- Each document is converted into a vector embedding and stored locally in `./chroma_db/`. When the agent receives a question, Node 3 (`retrieve_schema`) searches this store by similarity and pulls the most relevant chunks — so that Node 4 (`generate_sql`) has the right context to write accurate SQL without hallucinating.
+
 * **Results:**
 
 ---
