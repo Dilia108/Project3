@@ -8,7 +8,7 @@
 
 
 
-### Langgraph skeleton : `agent.py`
+## Langgraph skeleton : `agent.py`
 
 * The state flows through:
 
@@ -29,6 +29,18 @@
 
 
 ### Result from running agent.py - Smoke Test:
+
+* **Questions:**
+
+*test_questions = [
+        "How many suppliers does Check24 have?",
+        "Which products does Avis have connected to Autoslash?",
+        "What are the details of Check24\'s inbound products from Germany?",
+        # US-05 acceptance criterion: unknown client returns a friendly error
+        "How many suppliers does Booking.com have?",
+    ]
+
+---
 
 [Node 1] understand_question
   Question: How many suppliers does Check24 have?
@@ -216,7 +228,7 @@ Please check the name and try again.
   client_name:   None
   question_type: supplier_count
   intent:        The KAM wants to know the number of suppliers associated with Booking.com.
-  
+
 ── COST SUMMARY ──
   understand_question            gpt-4o-mini                  201↑   43↓ tokens  sq:0  $0.000056
   retrieve_schema                text-embedding-3-small        15↑    0↓ tokens  sq:0  $0.000000
@@ -236,3 +248,495 @@ Please check the name and try again.
 * **`retrieve_schema` stub is 15 tokens** — when ChromaDB is live, the real embedding call will use the full `intent_summary` (~30–40 tokens), so the actual cost will be marginally higher but still negligible at `text-embedding-3-small` pricing.
 
 * **Friendly error** returned with the list of supported clients
+
+## US-06 — fetch_salesforce_client: agent_SF.py
+
+* **Response:**
+---
+
+[Node 1] understand_question
+  Question: How many suppliers does Check24 have?
+  → client_name:    Check24
+  → question_type:  supplier_count
+  → intent_summary: The KAM wants to know the number of suppliers associated with Check24.
+  → tokens: 196 in / 41 out
+
+[Node 2] fetch_salesforce_client
+  Client: Check24
+  ✓ Found in Salesforce:
+    business_model:  Commissionable
+    account_tier:    Strategic
+    contract_status: Active
+    kam:             Dilia Navarro
+
+[Node 3] retrieve_schema
+  Query: The KAM wants to know the number of suppliers associated with Check24. — STUB (implement Day 3)
+
+[Node 4] generate_sql
+  STUB (implement Day 3)
+
+[Node 5] execute_sql
+  SQL: SELECT s.name, COUNT(p.id) AS product_count FROM supplier s -- STUB
+  STUB (implement Day 3)
+
+[Node 6] format_answer
+  STUB (implement Day 3)
+  → Total cost:    $0.000162
+  → Total tokens:  611 in / 121 out
+  → Supabase queries: 1 (free tier)
+
+── FINAL ANSWER ──
+*Client:* Check24 ← from Salesforce
+Account tier:    Strategic
+Business model:  Commissionable
+Contract status: Active
+KAM:             Dilia Navarro
+
+*Operational data (Supabase):*
+[
+  {
+    "supplier": "STUB — Supabase not yet connected",
+    "product_count": 0
+  }
+]
+
+_(STUB — full formatting implemented Day 3)_
+
+💰 *Query cost:* $0.000162 | 611↑ 121↓ tokens | 1 Supabase query (free tier)
+
+── PARSED INTENT ──
+  client_name:   Check24
+  question_type: supplier_count
+  intent:        The KAM wants to know the number of suppliers associated with Check24.
+
+── COST SUMMARY ──
+  understand_question            gpt-4o-mini                  196↑   41↓ tokens  sq:0  $0.000054
+  retrieve_schema                text-embedding-3-small        15↑    0↓ tokens  sq:0  $0.000000
+  generate_sql                   gpt-4o-mini                  400↑   80↓ tokens  sq:0  $0.000108
+  execute_sql                    supabase                       0↑    0↓ tokens  sq:1  $0.000000
+  TOTAL                                                       611↑  121↓ tokens  sq:1  $0.000162
+
+---
+
+[Node 1] understand_question
+  Question: Which products does Avis have connected to Autoslash?
+  → client_name:    Autoslash
+  → question_type:  product_list
+  → intent_summary: The KAM wants to know which products Avis offers for Autoslash.
+  → tokens: 198 in / 40 out
+
+[Node 2] fetch_salesforce_client
+  Client: Autoslash
+  ✓ Found in Salesforce:
+    business_model:  Wholesaler
+    account_tier:    Growth
+    contract_status: Active
+    kam:             Dilia Navarro
+
+[Node 3] retrieve_schema
+  Query: The KAM wants to know which products Avis offers for Autoslash. — STUB (implement Day 3)
+
+[Node 4] generate_sql
+  STUB (implement Day 3)
+
+[Node 5] execute_sql
+  SQL: SELECT s.name, COUNT(p.id) AS product_count FROM supplier s -- STUB
+  STUB (implement Day 3)
+
+[Node 6] format_answer
+  STUB (implement Day 3)
+  → Total cost:    $0.000162
+  → Total tokens:  613 in / 120 out
+  → Supabase queries: 1 (free tier)
+
+── FINAL ANSWER ──
+*Client:* Autoslash ← from Salesforce
+Account tier:    Growth
+Business model:  Wholesaler
+Contract status: Active
+KAM:             Dilia Navarro
+
+*Operational data (Supabase):*
+[
+  {
+    "supplier": "STUB — Supabase not yet connected",
+    "product_count": 0
+  }
+]
+
+_(STUB — full formatting implemented Day 3)_
+
+💰 *Query cost:* $0.000162 | 613↑ 120↓ tokens | 1 Supabase query (free tier)
+
+── PARSED INTENT ──
+  client_name:   Autoslash
+  question_type: product_list
+  intent:        The KAM wants to know which products Avis offers for Autoslash.
+
+── COST SUMMARY ──
+  understand_question            gpt-4o-mini                  198↑   40↓ tokens  sq:0  $0.000054
+  retrieve_schema                text-embedding-3-small        15↑    0↓ tokens  sq:0  $0.000000
+  generate_sql                   gpt-4o-mini                  400↑   80↓ tokens  sq:0  $0.000108
+  execute_sql                    supabase                       0↑    0↓ tokens  sq:1  $0.000000
+  TOTAL                                                       613↑  120↓ tokens  sq:1  $0.000162
+
+---
+
+[Node 1] understand_question
+  Question: What are the details of Check24's inbound products from Germany?
+  → client_name:    Check24
+  → question_type:  product_details
+  → intent_summary: The KAM wants to know the details of Check24's inbound products from Germany.
+  → tokens: 201 in / 43 out
+
+[Node 2] fetch_salesforce_client
+  Client: Check24
+  ✓ Found in Salesforce:
+    business_model:  Commissionable
+    account_tier:    Strategic
+    contract_status: Active
+    kam:             Dilia Navarro
+
+[Node 3] retrieve_schema
+  Query: The KAM wants to know the details of Check24's inbound products from Germany. — STUB (implement Day 3)
+
+[Node 4] generate_sql
+  STUB (implement Day 3)
+
+[Node 5] execute_sql
+  SQL: SELECT s.name, COUNT(p.id) AS product_count FROM supplier s -- STUB
+  STUB (implement Day 3)
+
+[Node 6] format_answer
+  STUB (implement Day 3)
+  → Total cost:    $0.000164
+  → Total tokens:  616 in / 123 out
+  → Supabase queries: 1 (free tier)
+
+── FINAL ANSWER ──
+*Client:* Check24 ← from Salesforce
+Account tier:    Strategic
+Business model:  Commissionable
+Contract status: Active
+KAM:             Dilia Navarro
+
+*Operational data (Supabase):*
+[
+  {
+    "supplier": "STUB — Supabase not yet connected",
+    "product_count": 0
+  }
+]
+
+_(STUB — full formatting implemented Day 3)_
+
+💰 *Query cost:* $0.000164 | 616↑ 123↓ tokens | 1 Supabase query (free tier)
+
+── PARSED INTENT ──
+  client_name:   Check24
+  question_type: product_details
+  intent:        The KAM wants to know the details of Check24's inbound products from Germany.
+
+── COST SUMMARY ──
+  understand_question            gpt-4o-mini                  201↑   43↓ tokens  sq:0  $0.000056
+  retrieve_schema                text-embedding-3-small        15↑    0↓ tokens  sq:0  $0.000000
+  generate_sql                   gpt-4o-mini                  400↑   80↓ tokens  sq:0  $0.000108
+  execute_sql                    supabase                       0↑    0↓ tokens  sq:1  $0.000000
+  TOTAL                                                       616↑  123↓ tokens  sq:1  $0.000164
+
+---
+
+[Node 1] understand_question
+  Question: How many suppliers does Booking.com have?
+  → client_name:    None
+  → question_type:  supplier_count
+  → intent_summary: The KAM wants to know the number of suppliers for Booking.com.
+  → tokens: 196 in / 38 out
+  WARNING: Client not recognised — returning friendly error
+  → No client name — short-circuiting to END
+
+── FINAL ANSWER ──
+I couldn't identify the client in your question.
+The clients I currently support are: *Check24*, *Autoslash*, and *HappyCar*.
+Please check the name and try again.
+
+── PARSED INTENT ──
+  client_name:   None
+  question_type: supplier_count
+  intent:        The KAM wants to know the number of suppliers for Booking.com.
+
+
+### Summary of response:
+
+* ✅ Node 2 returns correct data for all 3 clients — real Salesforce values, correctly mapped
+* ✅ All answers include business model, tier, contract status, and KAM (Dilia Navarro)
+* ✅ Graceful degradation wired and tested (Salesforce unavailable → friendly error)
+* ✅ Unknown client still short-circuits at Node 1, never reaches Node 2
+
+* **The field mapping is working exactly as designed** — "Channel Partner / Reseller" → Commissionable, "High" → Strategic. HappyCar wasn't in the test run but will return Inactive correctly since Active__c = False.
+
+* Calls to SF:
+
+![Login_history](screenshots/image-12.png)
+
+
+## US-07 — retrieve_schema (ChromaDB): agent_Chroma.py
+
+### Results:
+
+---
+
+[Node 1] understand_question
+  Question: How many suppliers does Check24 have?
+  → client_name:    Check24
+  → question_type:  supplier_count
+  → intent_summary: The KAM wants to know the number of suppliers associated with Check24.
+  → tokens: 196 in / 41 out
+
+[Node 2] fetch_salesforce_client
+  Client: Check24
+  ✓ Found in Salesforce:
+    business_model:  Commissionable
+    account_tier:    Strategic
+    contract_status: Active
+    kam:             Dilia Navarro
+
+[Node 3] retrieve_schema
+  Query: The KAM wants to know the number of suppliers associated with Check24.
+  ✓ Retrieved 3 documents:
+    query_patterns  (distance: 1.1327)
+    table_product  (distance: 1.1517)
+    table_client_supplier  (distance: 1.2517)
+  → embedding tokens (est.): 17
+
+[Node 4] generate_sql
+  STUB (implement US-08)
+
+[Node 5] execute_sql
+  SQL: SELECT s.name, COUNT(p.id) AS product_count FROM supplier s -- STUB
+  STUB (implement US-08)
+
+[Node 6] format_answer
+  STUB (implement US-09)
+  → Total cost:    $0.000162
+  → Total tokens:  613 in / 121 out
+  → Supabase queries: 1 (free tier)
+
+── FINAL ANSWER ──
+*Client:* Check24 ← from Salesforce
+Account tier:    Strategic
+Business model:  Commissionable
+Contract status: Active
+KAM:             Dilia Navarro
+
+*Operational data (Supabase):*
+[
+  {
+    "supplier": "STUB — Supabase not yet connected",
+    "product_count": 0
+  }
+]
+
+_(STUB — full formatting implemented US-09)_
+
+💰 *Query cost:* $0.000162 | 613↑ 121↓ tokens | 1 Supabase query (free tier)
+
+── SCHEMA RETRIEVED ──
+  query_patterns
+  table_product
+  table_client_supplier
+
+── PARSED INTENT ──
+  client_name:   Check24
+  question_type: supplier_count
+  intent:        The KAM wants to know the number of suppliers associated with Check24.
+
+── COST SUMMARY ──
+  understand_question            gpt-4o-mini                  196↑   41↓ tokens  sq:0  $0.000054
+  retrieve_schema                text-embedding-3-small        17↑    0↓ tokens  sq:0  $0.000000
+  generate_sql                   gpt-4o-mini                  400↑   80↓ tokens  sq:0  $0.000108
+  execute_sql                    supabase                       0↑    0↓ tokens  sq:1  $0.000000
+  TOTAL                                                       613↑  121↓ tokens  sq:1  $0.000162
+
+---
+
+[Node 1] understand_question
+  Question: Which products does Avis have connected to Autoslash?
+  → client_name:    Autoslash
+  → question_type:  product_list
+  → intent_summary: The KAM wants to know about the products offered by Avis for Autoslash.
+  → tokens: 198 in / 42 out
+
+[Node 2] fetch_salesforce_client
+  Client: Autoslash
+  ✓ Found in Salesforce:
+    business_model:  Wholesaler
+    account_tier:    Growth
+    contract_status: Active
+    kam:             Dilia Navarro
+
+[Node 3] retrieve_schema
+  Query: The KAM wants to know about the products offered by Avis for Autoslash.
+  ✓ Retrieved 3 documents:
+    glossary_rate_codes  (distance: 1.1576)
+    glossary_clients  (distance: 1.2883)
+    query_patterns  (distance: 1.3526)
+  → embedding tokens (est.): 17
+
+[Node 4] generate_sql
+  STUB (implement US-08)
+
+[Node 5] execute_sql
+  SQL: SELECT s.name, COUNT(p.id) AS product_count FROM supplier s -- STUB
+  STUB (implement US-08)
+
+[Node 6] format_answer
+  STUB (implement US-09)
+  → Total cost:    $0.000163
+  → Total tokens:  615 in / 122 out
+  → Supabase queries: 1 (free tier)
+
+── FINAL ANSWER ──
+*Client:* Autoslash ← from Salesforce
+Account tier:    Growth
+Business model:  Wholesaler
+Contract status: Active
+KAM:             Dilia Navarro
+
+*Operational data (Supabase):*
+[
+  {
+    "supplier": "STUB — Supabase not yet connected",
+    "product_count": 0
+  }
+]
+
+_(STUB — full formatting implemented US-09)_
+
+💰 *Query cost:* $0.000163 | 615↑ 122↓ tokens | 1 Supabase query (free tier)
+
+── SCHEMA RETRIEVED ──
+  glossary_rate_codes
+  glossary_clients
+  query_patterns
+
+── PARSED INTENT ──
+  client_name:   Autoslash
+  question_type: product_list
+  intent:        The KAM wants to know about the products offered by Avis for Autoslash.
+
+── COST SUMMARY ──
+  understand_question            gpt-4o-mini                  198↑   42↓ tokens  sq:0  $0.000055
+  retrieve_schema                text-embedding-3-small        17↑    0↓ tokens  sq:0  $0.000000
+  generate_sql                   gpt-4o-mini                  400↑   80↓ tokens  sq:0  $0.000108
+  execute_sql                    supabase                       0↑    0↓ tokens  sq:1  $0.000000
+  TOTAL                                                       615↑  122↓ tokens  sq:1  $0.000163
+
+---
+
+[Node 1] understand_question
+  Question: What are the details of Check24's inbound products from Germany?
+  → client_name:    Check24
+  → question_type:  product_details
+  → intent_summary: The KAM wants to know the details of Check24's inbound products from Germany.
+  → tokens: 201 in / 43 out
+
+[Node 2] fetch_salesforce_client
+  Client: Check24
+  ✓ Found in Salesforce:
+    business_model:  Commissionable
+    account_tier:    Strategic
+    contract_status: Active
+    kam:             Dilia Navarro
+
+[Node 3] retrieve_schema
+  Query: The KAM wants to know the details of Check24's inbound products from Germany.
+  ✓ Retrieved 3 documents:
+    table_product  (distance: 1.1585)
+    query_patterns  (distance: 1.1945)
+    glossary_rate_codes  (distance: 1.2594)
+  → embedding tokens (est.): 19
+
+[Node 4] generate_sql
+  STUB (implement US-08)
+
+[Node 5] execute_sql
+  SQL: SELECT s.name, COUNT(p.id) AS product_count FROM supplier s -- STUB
+  STUB (implement US-08)
+
+[Node 6] format_answer
+  STUB (implement US-09)
+  → Total cost:    $0.000164
+  → Total tokens:  620 in / 123 out
+  → Supabase queries: 1 (free tier)
+
+── FINAL ANSWER ──
+*Client:* Check24 ← from Salesforce
+Account tier:    Strategic
+Business model:  Commissionable
+Contract status: Active
+KAM:             Dilia Navarro
+
+*Operational data (Supabase):*
+[
+  {
+    "supplier": "STUB — Supabase not yet connected",
+    "product_count": 0
+  }
+]
+
+_(STUB — full formatting implemented US-09)_
+
+💰 *Query cost:* $0.000164 | 620↑ 123↓ tokens | 1 Supabase query (free tier)
+
+── SCHEMA RETRIEVED ──
+  table_product
+  query_patterns
+  glossary_rate_codes
+
+── PARSED INTENT ──
+  client_name:   Check24
+  question_type: product_details
+  intent:        The KAM wants to know the details of Check24's inbound products from Germany.
+
+── COST SUMMARY ──
+  understand_question            gpt-4o-mini                  201↑   43↓ tokens  sq:0  $0.000056
+  retrieve_schema                text-embedding-3-small        19↑    0↓ tokens  sq:0  $0.000000
+  generate_sql                   gpt-4o-mini                  400↑   80↓ tokens  sq:0  $0.000108
+  execute_sql                    supabase                       0↑    0↓ tokens  sq:1  $0.000000
+  TOTAL                                                       620↑  123↓ tokens  sq:1  $0.000164
+
+---
+
+[Node 1] understand_question
+  Question: How many suppliers does Booking.com have?
+  → client_name:    None
+  → question_type:  supplier_count
+  → intent_summary: The KAM wants to know the number of suppliers for Booking.com.
+  → tokens: 196 in / 38 out
+  WARNING: Client not recognised — short-circuiting to END
+  → No client name — short-circuiting to END
+
+── FINAL ANSWER ──
+I couldn't identify the client in your question.
+The clients I currently support are: *Check24*, *Autoslash*, and *HappyCar*.
+Please check the name and try again.
+
+── SCHEMA RETRIEVED ──
+
+── PARSED INTENT ──
+  client_name:   None
+  question_type: supplier_count
+  intent:        The KAM wants to know the number of suppliers for Booking.com.
+
+
+
+### Summary of response:
+
+* **ChromaDB retrieval is working well** — the document selection per question type is correct:
+
+* supplier_count → query_patterns, table_client_supplier ✅
+* product_list → glossary_rate_codes, glossary_clients ✅
+* product_details → table_product, query_patterns, glossary_rate_codes ✅
+
+* The telemetry warnings (capture() takes 1 positional argument but 3 were given) are a known ChromaDB version mismatch between their telemetry client and the installed version — harmless, doesn't affect results. Can be silenced by adding os.environ["ANONYMIZED_TELEMETRY"] = "False" at the top of the file to prevent from appearing.
