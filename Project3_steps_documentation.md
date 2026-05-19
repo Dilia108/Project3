@@ -75,7 +75,8 @@ Start IP Address:  your.ip.address.here
 End IP Address:    your.ip.address.here
 Description:       Development local machine
 
-Creating SF's accounts:
+* Creating SF's accounts:
+
 ![SF_accounts](screenshots/image-5.png)
 
 * **Mapping:**
@@ -204,9 +205,9 @@ CREATE TABLE IF NOT EXISTS product (
   Wholesaler check (Autoslash — net only):
   ✓ CONFIRMED — Autoslash has: {'net'}
 
-============================================================
+---
 Setup complete. Database is ready for the agent.
-============================================================
+---
 
 * The **RPC warnings** are expected and harmless — the tables were already created manually. Everything else is 100% correct:
 
