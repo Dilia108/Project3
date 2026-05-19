@@ -204,8 +204,6 @@ _(STUB — full formatting implemented Day 3)_
   generate_sql                   gpt-4o-mini                  400↑   80↓ tokens  sq:0  $0.000108
   execute_sql                    supabase                       0↑    0↓ tokens  sq:1  $0.000000
   TOTAL                                                       616↑  123↓ tokens  sq:1  $0.000164
-```
-
 
 
 ### Summary of the results:
