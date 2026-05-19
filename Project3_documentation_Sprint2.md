@@ -1407,3 +1407,7 @@ Please check the name and try again.
 ![check24_csv](screenshots/image-14.png)
 
 * => **The full agent pipeline is live end-to-end* — Salesforce → ChromaDB → Supabase → structured answer — at ~$0.000300 per query.
+
+## SPRINT2 Successfully finished:
+
+![Kanban](screenshots/image-15.png)
