@@ -168,6 +168,22 @@ def understand_question(state: AgentState) -> AgentState:
     }
     print(f"  → tokens: {usage_entry['prompt_tokens']} in / {usage_entry['completion_tokens']} out")
 
+    # Early exit: unknown client — skip all downstream nodes
+    if not client_name:
+        print(f"  WARNING: Client not recognised — returning friendly error")
+        return {
+            **state,
+            "client_name":    None,
+            "question_type":  question_type,
+            "intent_summary": intent_summary,
+            "usage":          state.get("usage", []) + [usage_entry],
+            "final_answer": (
+                "I couldn\'t identify the client in your question.\n"
+                "The clients I currently support are: *Check24*, *Autoslash*, and *HappyCar*.\n"
+                "Please check the name and try again."
+            ),
+        }
+
     return {
         **state,
         "client_name":    client_name,
@@ -464,6 +480,18 @@ def format_answer(state: AgentState) -> AgentState:
 
 MAX_RETRIES = 2
 
+def route_after_understand_question(state: AgentState) -> str:
+    """
+    After understand_question:
+    - If client_name is None → short-circuit directly to END (friendly error already in state)
+    - Otherwise → proceed normally to fetch_salesforce_client
+    """
+    if not state.get("client_name"):
+        print(f"  → No client name — short-circuiting to END")
+        return END
+    return "fetch_salesforce_client"
+
+
 def route_after_execute_sql(state: AgentState) -> str:
     """
     After execute_sql:
@@ -492,8 +520,17 @@ def build_graph() -> StateGraph:
     # Entry point
     graph.set_entry_point("understand_question")
 
+    # Conditional edge: short-circuit if client not recognised
+    graph.add_conditional_edges(
+        "understand_question",
+        route_after_understand_question,
+        {
+            "fetch_salesforce_client": "fetch_salesforce_client",
+            END: END,
+        },
+    )
+
     # Linear edges
-    graph.add_edge("understand_question",     "fetch_salesforce_client")
     graph.add_edge("fetch_salesforce_client", "retrieve_schema")
     graph.add_edge("retrieve_schema",         "generate_sql")
     graph.add_edge("generate_sql",            "execute_sql")
@@ -548,7 +585,9 @@ if __name__ == "__main__":
     test_questions = [
         "How many suppliers does Check24 have?",
         "Which products does Avis have connected to Autoslash?",
-        "What are the details of Check24's inbound products from Germany?",
+        "What are the details of Check24\'s inbound products from Germany?",
+        # US-05 acceptance criterion: unknown client returns a friendly error
+        "How many suppliers does Booking.com have?",
     ]
 
     for q in test_questions:
@@ -560,14 +599,16 @@ if __name__ == "__main__":
         print(f"  client_name:   {result['client_name']}")
         print(f"  question_type: {result['question_type']}")
         print(f"  intent:        {result['intent_summary']}")
-        print(f"\n── COST SUMMARY ──")
-        cs = result.get("cost_summary", {})
-        for row in cs.get("breakdown", []):
-            print(f"  {row['node']:<30} {row['model']:<26} "
-                  f"{row['prompt_tokens']:>5}↑ {row['completion_tokens']:>4}↓ tokens  "
-                  f"sq:{row['supabase_queries']}  ${row['cost_usd']:.6f}")
-        print(f"  {'TOTAL':<30} {'':26} "
-              f"{cs.get('total_prompt_tokens',0):>5}↑ "
-              f"{cs.get('total_completion_tokens',0):>4}↓ tokens  "
-              f"sq:{cs.get('total_supabase_queries',0)}  "
-              f"${cs.get('total_cost_usd',0):.6f}")
+        # Cost summary only printed when the full graph ran (skipped on early exit)
+        if result.get("cost_summary"):
+            print(f"\n── COST SUMMARY ──")
+            cs = result["cost_summary"]
+            for row in cs.get("breakdown", []):
+                print(f"  {row['node']:<30} {row['model']:<26} "
+                      f"{row['prompt_tokens']:>5}↑ {row['completion_tokens']:>4}↓ tokens  "
+                      f"sq:{row['supabase_queries']}  ${row['cost_usd']:.6f}")
+            print(f"  {'TOTAL':<30} {'':26} "
+                  f"{cs.get('total_prompt_tokens',0):>5}↑ "
+                  f"{cs.get('total_completion_tokens',0):>4}↓ tokens  "
+                  f"sq:{cs.get('total_supabase_queries',0)}  "
+                  f"${cs.get('total_cost_usd',0):.6f}")

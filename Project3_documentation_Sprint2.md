@@ -198,6 +198,25 @@ _(STUB — full formatting implemented Day 3)_
   question_type: product_details
   intent:        The KAM wants to know the details of Check24's inbound products from Germany.
 
+[Node 1] understand_question
+  Question: How many suppliers does Booking.com have?
+  → client_name:    None
+  → question_type:  supplier_count
+  → intent_summary: The KAM wants to know the number of suppliers associated with Booking.com.
+  → tokens: 196 in / 39 out
+  WARNING: Client not recognised — returning friendly error
+  → No client name — short-circuiting to END
+
+── FINAL ANSWER ──
+I couldn't identify the client in your question.
+The clients I currently support are: *Check24*, *Autoslash*, and *HappyCar*.
+Please check the name and try again.
+
+── PARSED INTENT ──
+  client_name:   None
+  question_type: supplier_count
+  intent:        The KAM wants to know the number of suppliers associated with Booking.com.
+  
 ── COST SUMMARY ──
   understand_question            gpt-4o-mini                  201↑   43↓ tokens  sq:0  $0.000056
   retrieve_schema                text-embedding-3-small        15↑    0↓ tokens  sq:0  $0.000000
@@ -215,3 +234,5 @@ _(STUB — full formatting implemented Day 3)_
 * **`generate_sql` stub tokens dominate** — the fixed 400/80 stub values represent the largest cost share right now. Once the real LLM call is wired in Sprint 3, this will fluctuate based on actual schema context size.
 
 * **`retrieve_schema` stub is 15 tokens** — when ChromaDB is live, the real embedding call will use the full `intent_summary` (~30–40 tokens), so the actual cost will be marginally higher but still negligible at `text-embedding-3-small` pricing.
+
+* **Friendly error** returned with the list of supported clients
