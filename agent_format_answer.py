@@ -127,13 +127,28 @@ CLIENTS in the system: Check24, Autoslash, HappyCar
 
 QUESTION TYPES:
 - supplier_count   → "how many suppliers does [client] have?"
+- supplier_list    → "which/what suppliers does [client] have?"
 - product_list     → "which/what products does [supplier] have for [client]?"
-- product_details  → "details/specifics about products, routes, rates, excess for [client]"
+- product_details  → details, specifics, rates, excess, or route information about
+                     products for a client — including any question that filters by
+                     geography or direction (inbound, outbound, from [country],
+                     to [country], routes from/to [place])
+
+DISAMBIGUATION RULE:
+If the question asks about "products" but includes a geographic filter
+(a country, city, region) or a directional keyword (inbound, outbound,
+from, to, origin, destination), classify it as product_details — NOT product_list.
+
+Examples of product_details:
+  - "What are HappyCar's inbound products from France?"
+  - "Which products come from Spain for Check24?"
+  - "Show me outbound routes to Germany for Autoslash"
+  - "What are the rates on French routes for HappyCar?"
 
 Respond ONLY with a JSON object — no markdown, no explanation:
 {
   "client_name": "<name exactly as it appears in the system, or null if not found>",
-  "question_type": "<supplier_count | product_list | product_details>",
+  "question_type": "<supplier_count | supplier_list | product_list | product_details>",
   "intent_summary": "<one sentence describing what the KAM wants to know>"
 }"""
 
@@ -266,7 +281,7 @@ def fetch_salesforce_client(state: AgentState) -> AgentState:
             "Type":            raw.get("Type"),
             "business_model":  SF_TYPE_MAP.get(raw.get("Type", ""), raw.get("Type", "N/A")),
             "account_tier":    SF_PRIORITY_MAP.get(raw.get("CustomerPriority__c", ""), raw.get("CustomerPriority__c", "N/A")),
-            "contract_status": "Active" if raw.get("Active__c") else "Inactive",
+            "contract_status": "Active" if raw.get("Active__c") == "Yes" else "Inactive",
             "kam":             raw.get("Owner", {}).get("Name", "N/A"),
         }
 
@@ -374,6 +389,17 @@ AVAILABLE TABLES — use these exact names, no others:
   - product           (id, client_name, supplier_id, rate_code, rate_type,
                        product_type, source_country, destination_country, status, notes)
 
+QUESTION TYPE → SQL PATTERN:
+  - supplier_count  → SELECT COUNT(DISTINCT cs.supplier_id) FROM client_supplier cs WHERE ...
+  - supplier_list   → SELECT s.name, s.code, s.region FROM supplier s JOIN client_supplier cs ON s.id = cs.supplier_id WHERE cs.client_name = '...' AND cs.status = 'active'
+  - product_list    → SELECT rate_code, rate_type, product_type, source_country, destination_country FROM product WHERE client_name = '...' AND status = 'active'
+  - product_details → SELECT p.rate_code, p.rate_type, s.name AS supplier, p.source_country, p.destination_country FROM product p JOIN supplier s ON s.id = p.supplier_id WHERE p.client_name = '...' AND p.status = 'active'
+
+CRITICAL RULES FOR product_details:
+  - ALWAYS include s.name AS supplier in the SELECT — NEVER omit it
+  - NEVER select p.product_type in product_details queries
+  - ALWAYS JOIN supplier s ON s.id = p.supplier_id to get the supplier name
+
 KEY RULES:
   - Always filter by status = 'active' unless the question asks about inactive records
   - client_name values are case-sensitive: 'Check24', 'Autoslash', 'HappyCar'
@@ -387,6 +413,16 @@ KEY RULES:
     DO NOT also join client_supplier — this causes duplicate rows
     Only join client_supplier when you need connection-level data (e.g. supplier count per client)
   - Return only a single valid SELECT statement — no explanations, no markdown
+  - For product_details queries ALWAYS include s.name AS supplier in the SELECT
+  - For product_details queries the SELECT must always be exactly:
+    SELECT p.rate_code, p.rate_type, s.name AS supplier, p.source_country, p.destination_country
+    NEVER select p.product_type in product_details queries
+  - For geographic filters, 'inbound products FROM [country]' means source_country = '[ISO code]'
+    NEVER use destination_country for the origin/source of a product
+  - 'inbound' means the product originates outside and comes IN — source_country is the origin
+  - Country names must be converted to ISO 3166-1 alpha-2 codes:
+    France = 'FR', Germany = 'DE', Spain = 'ES', Italy = 'IT', UK = 'GB'
+  - Always filter p.status = 'active' — never 'inactive'
 """
 
 GENERATE_SQL_SYSTEM_PROMPT = """You are a SQL generator for a PostgreSQL database
@@ -426,7 +462,7 @@ Fix the error and generate a corrected SQL query."""
 
     messages = [
         SystemMessage(content=system_prompt),
-        HumanMessage(content=state["question"]),
+        HumanMessage(content=f"Question type: {state.get('question_type', 'unknown')}\nQuestion: {state['question']}"),
     ]
     response = llm.invoke(messages)
     sql_raw  = response.content.strip()
@@ -560,30 +596,62 @@ def _format_rows(rows: list, question_type: str) -> str:
         count = next((v for v in row.values() if isinstance(v, (int, float))), "N/A")
         return f"  Total active suppliers: {count}"
 
-    if question_type == "product_list":
-        # Columns: rate_code, rate_type, product_type, source_country, destination_country
-        lines = [f"  {'Rate Code':<12} {'Type':<8} {'Product':<14} {'Route'}"]
-        lines.append(f"  {'-'*12} {'-'*8} {'-'*14} {'-'*20}")
+    if question_type == "supplier_list":
+        lines = [f"  {'Supplier':<16} {'Code':<8} {'Region'}"]
+        lines.append(f"  {'-'*16} {'-'*8} {'-'*16}")
         for row in rows:
-            route = f"{row.get('source_country','?')} → {row.get('destination_country','?')}"
             lines.append(
-                f"  {row.get('rate_code','N/A'):<12} "
-                f"{row.get('rate_type','N/A'):<8} "
-                f"{row.get('product_type','N/A'):<14} "
-                f"{route}"
+                f"  {row.get('name', row.get('supplier_name', 'N/A')):<16} "
+                f"{row.get('code', row.get('supplier_code', 'N/A')):<8} "
+                f"{row.get('region', row.get('supplier_region', 'N/A'))}"
             )
+        return "\n".join(lines)
+
+    if question_type == "product_list":
+        # Detect result shape — supplier-list vs product-list
+        sample = rows[0]
+        if "supplier_name" in sample or "supplier_id" in sample:
+            # Supplier-list shape: supplier_id, supplier_name, supplier_code, supplier_region
+            lines = [f"  {'Supplier':<16} {'Code':<8} {'Region'}"]
+            lines.append(f"  {'-'*16} {'-'*8} {'-'*16}")
+            for row in rows:
+                lines.append(
+                    f"  {row.get('supplier_name', row.get('name', 'N/A')):<16} "
+                    f"{row.get('supplier_code', row.get('code', 'N/A')):<8} "
+                    f"{row.get('supplier_region', row.get('region', 'N/A'))}"
+                )
+        else:
+            # Product-list shape: rate_code, rate_type, product_type, source/destination
+            lines = [f"  {'Rate Code':<12} {'Type':<8} {'Product':<14} {'Route'}"]
+            lines.append(f"  {'-'*12} {'-'*8} {'-'*14} {'-'*20}")
+            for row in rows:
+                route = f"{row.get('source_country','?')} → {row.get('destination_country','?')}"
+                lines.append(
+                    f"  {row.get('rate_code','N/A'):<12} "
+                    f"{row.get('rate_type','N/A'):<8} "
+                    f"{row.get('product_type','N/A'):<14} "
+                    f"{route}"
+                )
         return "\n".join(lines)
 
     if question_type == "product_details":
         # Columns: rate_code, rate_type, supplier, source_country, destination_country
+        # Supplier may come back as: supplier, name, supplier_name, or product_type fallback
         lines = [f"  {'Rate Code':<12} {'Type':<8} {'Supplier':<12} {'Route'}"]
         lines.append(f"  {'-'*12} {'-'*8} {'-'*12} {'-'*20}")
         for row in rows:
             route = f"{row.get('source_country','?')} → {row.get('destination_country','?')}"
+            supplier = (
+                row.get('supplier')
+                or row.get('name')
+                or row.get('supplier_name')
+                or row.get('product_type')
+                or 'N/A'
+            )
             lines.append(
                 f"  {row.get('rate_code','N/A'):<12} "
                 f"{row.get('rate_type','N/A'):<8} "
-                f"{row.get('supplier', row.get('name','N/A')):<12} "
+                f"{supplier:<12} "
                 f"{route}"
             )
         return "\n".join(lines)
@@ -837,11 +905,20 @@ def format_answer(state: AgentState) -> AgentState:
         )
 
     # ── Section 2: Operational data ───────────────────────────────────────────
-    data_section = (
-        f"┌─ OPERATIONAL DATA (Supabase) {'─' * 29}┐\n"
-        f"{_format_rows(rows, question_type)}\n"
-        f"└{'─' * 59}┘"
-    )
+    if state.get("sql_error"):
+        data_section = (
+            f"┌─ OPERATIONAL DATA (Supabase) {'─' * 29}┐\n"
+            f"  ⚠️  Query failed after {state.get('retry_count', 0)} retries.\n"
+            f"  Error: {str(state.get('sql_error', 'Unknown error'))[:120]}\n"
+            f"  Please rephrase your question or contact support.\n"
+            f"└{'─' * 59}┘"
+        )
+    else:
+        data_section = (
+            f"┌─ OPERATIONAL DATA (Supabase) {'─' * 29}┐\n"
+            f"{_format_rows(rows, question_type)}\n"
+            f"└{'─' * 59}┘"
+        )
 
     # ── Section 3: Transparency ───────────────────────────────────────────────
     sql_section = (

@@ -1733,3 +1733,7 @@ Please check the name and try again.
 
 
 * Update was added in the corresponding Jira Ticket
+
+* Sprint2 was successfully done:
+
+![Sprint2](screenshots/image-50.png)
