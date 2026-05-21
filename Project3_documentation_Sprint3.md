@@ -534,7 +534,11 @@ A video was made using 4 different questions:
 
 ## US-16 — Compile and prioritise v2 feature backlog
 
-## Sprint 3 Fixes Log
+
+* For more details, refer to => `KAM_Agent_V2_Backlog.md`
+
+
+### Sprint 3 Fixes:
 
 Issues identified during US-12 testing and the US-13 demo session that were resolved before end of sprint.
 
@@ -548,7 +552,7 @@ Issues identified during US-12 testing and the US-13 demo session that were reso
 
 ---
 
-## V2 Backlog — Deferred Items
+### V2 Backlog — Deferred Items
 
 Items not resolved in Sprint 3, recommended for the next sprint cycle.
 
@@ -562,3 +566,8 @@ Items not resolved in Sprint 3, recommended for the next sprint cycle.
 | V2-06 | No query history or audit log | Log all questions + answers to Supabase |
 | V2-07 | Free tier Supabase rate limits | Move to paid tier or production DB for live rollout |
 | V2-08 | ChromaDB telemetry errors on every query | Pin or patch ChromaDB version to fix `capture()` signature |
+
+
+### Full Sprint 3 — DONE ✅
+
+Kanban board: ![Board](screenshots/image-61.png)
