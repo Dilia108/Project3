@@ -230,7 +230,7 @@ def upload_to_slack():
     import os as _os
     import requests as _requests
 
-    SLACK_TOKEN = os.getenv("SLACK_BOT_TOKEN", "xoxb-11154311307111-11167834849814-Uq9Lk6vFSHBYb3QDQfDJBiLi")
+    SLACK_TOKEN = os.getenv("SLACK_BOT_TOKEN")
 
     body        = request.get_json(silent=True) or {}
     xlsx_path   = (body.get("xlsx_path") or "").strip()
