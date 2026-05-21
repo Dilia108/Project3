@@ -458,6 +458,49 @@ KEY RULES:
 2026-05-20 21:45:51 [INFO] 127.0.0.1 - - [20/May/2026 21:45:51] "POST /ask HTTP/1.1" 200 -
 ---
 
+## Excel file to be delivered via Slack
+
+**Changes applied in:** 
+* agent_format_answer.py
+* server.py
+* n8n workflow
+
+- The file will only be delivered if requested via slack, and only when there is tabular information. When it does not apply a gentle message will be sent back to the user.
+
+* New n8n workflow:
+
+![n8n_excel](screenshots/image-57.png)
+
+* Slack response:
+
+![Slack_xlsx](screenshots/image-56.png)
+
+* File:
+![File](screenshots/image-55.png)
+
+**The full pipeline is working end-to-end:**
+
+- ✅ Slack message detected with export keyword
+- ✅ Agent ran, XLSX generated on disk
+- ✅ Flask /upload-to-slack streamed raw bytes to Slack's v2 API
+- ✅ File appears in Slack with a proper preview thumbnail
+- ✅ Opens correctly in Excel with full formatting — Client Profile, SQL section, cost footer
+
+
+* More tests will be run, to make sure all is working properly
+
+* Q1: Export to Excel: what are HappyCar's inbound products from France?
+
+![HC_excel](screenshots/image-58.png)
+
+* Q2: How many suppliers does Check24 have? Export to Excel (this example should not return a file)
+
+![Check_suppliercount](screenshots/image-59.png)
+
+* Q3: Which products does Avis have for Autoslash? Send as spreadsheet
+
+![AS_products](screenshots/image-60.png)
+
 ## US-14 — Documentation
 
 The README covers all four acceptance criteria:
@@ -471,3 +514,23 @@ The README covers all four acceptance criteria:
 *	XLSX export — trigger keywords, what exports for which question type, where files are saved
 *	n8n + Slack — workflow structure, what to do if ngrok URL changes, troubleshooting checklist
 *	Known limitations and V2 backlog — carried over from the demo log
+
+
+## US-15 — Recording
+
+A video was made using 4 different questions:
+
+* Q1:  give me the product details for Autoslash with Budget. Export to excel
+
+* Q2:  show me all ratecodes connected to Check24. Export to excel
+
+* Q3:  Export to Excel: which suppliers does HappyCar have? .- there should be no export
+
+* Q4: how many suppliers does Check24 have? Export to Excel .- there should be no export
+
+**Link:**  https://www.loom.com/share/dcec82f2915a47509a65b6bf9fc0813f 
+
+
+
+## US-16 — Compile and prioritise v2 feature backlog
+

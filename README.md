@@ -91,11 +91,6 @@ curl -s -X POST http://localhost:5000/ask \
 
 All credentials live in the `.env` file in the project root. **Never commit this file to Git.**
 
-A template is available at `.env.example`. Copy it and fill in each value:
-
-```bash
-cp .env.example .env
-```
 
 | Variable | What it is | Where to find it |
 |---|---|---|
@@ -115,15 +110,16 @@ cp .env.example .env
 Project3/
 ├── agent_format_answer.py   ← main agent logic (all 6 nodes)
 ├── server.py                ← Flask API wrapper
-├── server_check.py          ← quick connection health check
-├── check_sf.py              ← standalone Salesforce field inspector
 ├── seed_rag.py              ← populates ChromaDB with schema docs
 ├── db_setup.py              ← creates and seeds Supabase tables
 ├── chroma_db/               ← ChromaDB vector store (local folder)
 ├── exports/                 ← generated XLSX files saved here
 ├── .env                     ← credentials (never commit)
-├── .env.example             ← template for new environments
-└── requirements.txt         ← Python dependencies
+├── requirements.txt         ← Python dependencies
+├── n8n workflow/            ← n8n workflows defining a milestone
+├── py for testing/          ← collection of python files used for testing steps
+└── screenshots/             ← screenshots used for documenting the steps taken
+
 ```
 
 ---
@@ -334,7 +330,7 @@ The KAM can request an Excel file by including an export keyword in their questi
 
 `./exports/<ClientName>_<question_type>_<YYYY-MM-DD>.xlsx`
 
-Example: `./exports/HappyCar_product_details_2026-05-21.xlsx`
+Example: `./exports/Check24_product_details_2026-05-21.xlsx`
 
 Files accumulate in this folder and are not automatically deleted. Clear old exports manually as needed.
 

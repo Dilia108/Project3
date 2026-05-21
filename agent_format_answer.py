@@ -84,7 +84,8 @@ EXPORT_DIR = "./exports"
 class AgentState(TypedDict):
     # Input
     question: str
-    export_csv: bool             # if True, write CSV file after format_answer
+    export_csv: bool             # kept for backward compat with run_agent()
+    export_xlsx: bool            # detected from question keywords by Node 1
 
     # Node 1
     client_name: Optional[str]
@@ -145,11 +146,17 @@ Examples of product_details:
   - "Show me outbound routes to Germany for Autoslash"
   - "What are the rates on French routes for HappyCar?"
 
+EXPORT DETECTION:
+Set export_xlsx to true if the question contains any of these keywords:
+  excel, export, spreadsheet, send me the file, as a file, download,
+  send the file, attach, xlsx
+
 Respond ONLY with a JSON object — no markdown, no explanation:
 {
   "client_name": "<name exactly as it appears in the system, or null if not found>",
   "question_type": "<supplier_count | supplier_list | product_list | product_details>",
-  "intent_summary": "<one sentence describing what the KAM wants to know>"
+  "intent_summary": "<one sentence describing what the KAM wants to know>",
+  "export_xlsx": <true | false>
 }"""
 
 
@@ -174,10 +181,12 @@ def understand_question(state: AgentState) -> AgentState:
     client_name    = parsed.get("client_name")
     question_type  = parsed.get("question_type")
     intent_summary = parsed.get("intent_summary")
+    export_xlsx    = bool(parsed.get("export_xlsx", False))
 
     print(f"  → client_name:    {client_name}")
     print(f"  → question_type:  {question_type}")
     print(f"  → intent_summary: {intent_summary}")
+    print(f"  → export_xlsx:    {export_xlsx}")
 
     usage_entry = {
         "node":              "understand_question",
@@ -194,6 +203,7 @@ def understand_question(state: AgentState) -> AgentState:
             "client_name":    None,
             "question_type":  question_type,
             "intent_summary": intent_summary,
+            "export_xlsx":    export_xlsx,
             "usage":          state.get("usage", []) + [usage_entry],
             "final_answer": (
                 "I couldn't identify the client in your question.\n"
@@ -207,6 +217,7 @@ def understand_question(state: AgentState) -> AgentState:
         "client_name":    client_name,
         "question_type":  question_type,
         "intent_summary": intent_summary,
+        "export_xlsx":    export_xlsx,
         "usage":          state.get("usage", []) + [usage_entry],
     }
 
@@ -392,13 +403,17 @@ AVAILABLE TABLES — use these exact names, no others:
 QUESTION TYPE → SQL PATTERN:
   - supplier_count  → SELECT COUNT(DISTINCT cs.supplier_id) FROM client_supplier cs WHERE ...
   - supplier_list   → SELECT s.name, s.code, s.region FROM supplier s JOIN client_supplier cs ON s.id = cs.supplier_id WHERE cs.client_name = '...' AND cs.status = 'active'
-  - product_list    → SELECT rate_code, rate_type, product_type, source_country, destination_country FROM product WHERE client_name = '...' AND status = 'active'
+  - product_list    → SELECT p.rate_code, p.rate_type, p.product_type, p.source_country, p.destination_country FROM product p JOIN supplier s ON s.id = p.supplier_id WHERE p.client_name = '...' AND s.name = '...' AND p.status = 'active'
   - product_details → SELECT p.rate_code, p.rate_type, s.name AS supplier, p.source_country, p.destination_country FROM product p JOIN supplier s ON s.id = p.supplier_id WHERE p.client_name = '...' AND p.status = 'active'
 
 CRITICAL RULES FOR product_details:
   - ALWAYS include s.name AS supplier in the SELECT — NEVER omit it
   - NEVER select p.product_type in product_details queries
   - ALWAYS JOIN supplier s ON s.id = p.supplier_id to get the supplier name
+
+CRITICAL RULES FOR product_list:
+  - ALWAYS include p.product_type in the SELECT — NEVER omit it
+  - ALWAYS JOIN supplier s ON s.id = p.supplier_id when filtering by supplier name
 
 KEY RULES:
   - Always filter by status = 'active' unless the question asks about inactive records
@@ -940,17 +955,36 @@ def format_answer(state: AgentState) -> AgentState:
 
     answer = f"{sf_section}\n\n{data_section}\n\n{sql_section}\n\n{cost_line}"
 
-    # ── Optional CSV export ───────────────────────────────────────────────────
-    csv_path = None
-    if state.get("export_csv") and rows:
-        csv_path = _write_xlsx(state, sf, rows)
+    # ── Optional XLSX export ──────────────────────────────────────────────────
+    xlsx_path = None
+    exportable_types = {"product_details", "supplier_list", "product_list"}
+
+    if state.get("export_xlsx"):
+        if question_type in exportable_types and rows:
+            xlsx_path = _write_xlsx(state, sf, rows)
+            print(f"  → export_xlsx: True — file written for {question_type}")
+        elif question_type in exportable_types and not rows:
+            answer += (
+                "\n\n📎 No data was available to export for this query — "
+                "no file has been generated."
+            )
+            print(f"  → export_xlsx: True — gentle message added for empty rows")
+        elif question_type == "supplier_count":
+            answer += (
+                "\n\n📎 Excel exports are available for tabular data such as "
+                "supplier lists and product details. For supplier counts, "
+                "the answer is a single number — no file needed!"
+            )
+            print(f"  → export_xlsx: True — gentle message added for supplier_count")
+        else:
+            print(f"  → export_xlsx: True — skipped (no rows or unsupported type)")
 
     return {
         **state,
         "usage":        usage,
         "cost_summary": cost_summary,
         "final_answer": answer,
-        "csv_path":     csv_path,
+        "csv_path":     xlsx_path,
     }
 
 
@@ -1011,6 +1045,7 @@ def run_agent(question: str, export_csv: bool = False) -> dict:
     initial_state: AgentState = {
         "question":          question,
         "export_csv":        export_csv,
+        "export_xlsx":       False,      # Node 1 will set this from keyword detection
         "client_name":       None,
         "question_type":     None,
         "intent_summary":    None,
@@ -1023,7 +1058,7 @@ def run_agent(question: str, export_csv: bool = False) -> dict:
         "sql_error":         None,
         "retry_count":       0,
         "final_answer":      None,
-        "csv_path":          None,   # .xlsx path if exported
+        "csv_path":          None,
         "usage":             [],
         "cost_summary":      None,
     }

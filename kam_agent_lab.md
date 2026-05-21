@@ -245,7 +245,6 @@ SQL executed:                            ← shown for transparency
 
 - Scheduled daily KAM summary delivered to Slack
 - Rate comparison across suppliers for a given client and route
-- CSV export of query results
 - Web UI for non-Slack users
 - Role-based access control
 - Multi-language support
@@ -259,17 +258,16 @@ SQL executed:                            ← shown for transparency
 - `sf_setup.md` — instructions for creating fake client accounts in Salesforce Developer Edition
 - `db_setup.py` — creates and seeds the Supabase mock database (suppliers, connections, products)
 - `seed_rag.py` — populates ChromaDB with Supabase schema descriptions and business glossary
-- `agent.py` — LangGraph 6-node agent (understand → Salesforce fetch → schema RAG → generate SQL → execute → format)
+- `agent_format_answer.py` — LangGraph 6-node agent (understand → Salesforce fetch → schema RAG → generate SQL → execute → format)
 - `server.py` — Flask REST endpoint (`POST /ask`, `GET /health`)
 - `n8n_workflow.json` — importable workflow for Slack webhook trigger and answer delivery
-- `requirements.txt`, `.env.example`, `.gitignore` — project setup files
+- `requirements.txt`, `.gitignore` — project setup files
 
 **What is explicitly excluded:**
 
 - No multi-turn conversation memory
 - No client-scoped access control
 - No live production database or production Salesforce connection
-- No CSV or PDF export
 - No web UI
 
 ---
@@ -325,15 +323,15 @@ SQL executed:                            ← shown for transparency
 
 ## 5. Implementation Plan
 
-### Phase 1: Setup and data preparation (Week 1)
+### Phase 1: Setup and data preparation (Day 1)
 
 **Objective:** All three data sources live — Salesforce accounts created, Supabase database seeded, ChromaDB schema store populated.
 
 Tasks:
 - Set up Python environment: `pip install -r requirements.txt`
-- Copy `.env.example` to `.env` — fill in OpenAI key, Salesforce credentials, and Supabase connection URL
+- Set up `.env` — fill in OpenAI key, Salesforce credentials, Supabase key and connection URL, and Slack credentials.
 - Create Salesforce Developer Edition account at developer.salesforce.com
-- Create fake client Account records in Salesforce: Check24, Booking.com, TUI — with fields: business model, account tier, contract status, assigned KAM
+- Create fake client Account records in Salesforce: Check24, Autoslash, HappyCar — with fields: business model, account tier, contract status, assigned KAM
 - Create Supabase project (free tier) and run `db_setup.py` — creates `supplier`, `client_supplier`, and `product` tables with mock data
 - Run `seed_rag.py` — populates ChromaDB with Supabase table descriptions and business glossary
 - Validate: manually call the Salesforce API for Check24 and confirm the account record is returned
@@ -345,7 +343,7 @@ Tasks:
 
 ---
 
-### Phase 2: Core agent development (Week 2)
+### Phase 2: Core agent development (Day 2)
 
 **Objective:** LangGraph agent combining Salesforce and Supabase data to answer all three KAM question types correctly.
 
@@ -362,12 +360,12 @@ Tasks:
 - Verify every answer includes the Salesforce client profile section
 - Validate that no hallucinated column or table names appear in any generated SQL
 
-**Milestone:** `python agent.py` returns correct combined answers (Salesforce + Supabase) for all three question types.
+**Milestone:** `python agent_format_answer.py` returns correct combined answers (Salesforce + Supabase) for all three question types.
 **Estimated time:** 10–12 hours.
 
 ---
 
-### Phase 3: Integration and testing (Week 3)
+### Phase 3: Integration and testing (Day 3)
 
 **Objective:** Full pipeline live — Slack message triggers agent, combined answer posted back.
 
@@ -384,7 +382,7 @@ Tasks:
 
 ---
 
-### Phase 4: Deployment and demo (Week 4)
+### Phase 4: Deployment and demo (Day 4)
 
 **Objective:** System stable and ready for a live demonstration to a KAM audience.
 
@@ -403,12 +401,12 @@ Tasks:
 
 ### Timeline summary
 
-| Week | Phase | Key milestone | Estimated hours |
+| Day | Phase | Key milestone | Estimated hours |
 |---|---|---|---|
-| Week 1 | Setup and data preparation | All 3 data sources live and validated | 8–10 hrs |
-| Week 2 | Core agent development | Agent returns combined Salesforce + Supabase answers | 10–12 hrs |
-| Week 3 | Integration and testing | Full Slack pipeline working end-to-end | 8–10 hrs |
-| Week 4 | Deployment and demo | Live KAM demo successful | 6–8 hrs |
+| Day 1 | Setup and data preparation | All 3 data sources live and validated | 8–10 hrs |
+| Day 2 | Core agent development | Agent returns combined Salesforce + Supabase answers | 10–12 hrs |
+| Day 3 | Integration and testing | Full Slack pipeline working end-to-end | 8–10 hrs |
+| Day 4 | Deployment and demo | Live KAM demo successful | 6–8 hrs |
 | **Total** | | | **32–40 hrs** |
 
 ---
@@ -473,4 +471,4 @@ The MVP is considered complete when:
 
 ---
 
-*Document version: MVP · Car Rental Industry · Lab submission · May 2026*
+*Document version: MVP · Car Rental Industry · May 2026*

@@ -125,7 +125,7 @@ def health():
         "status":      "healthy",
         "agent_ready": AGENT_LOADED,
         "build_time":  BUILD_TIME,
-        "version":     "sprint3-us10",
+        "version":     "sprint3-us13",
     }), 200
 
 
@@ -207,6 +207,141 @@ def ask():
         payload["cost"].get("total_cost_usd", 0.0),
     )
     return jsonify(payload), 200
+
+
+@app.post("/upload-to-slack")
+def upload_to_slack():
+    """
+    POST /upload-to-slack
+    Body (JSON):
+      {
+        "xlsx_path":     "./exports/Check24_supplier_list_2026-05-21.xlsx",
+        "client_name":   "Check24",
+        "question_type": "supplier_list",
+        "channel_id":    "C0B53G3PE6Q",
+        "thread_ts":     "1779354180.528469"
+      }
+
+    Implements Slack's 3-step file upload API (post-deprecation):
+      1. files.getUploadURLExternal  → upload_url + file_id
+      2. POST raw bytes to upload_url
+      3. files.completeUploadExternal → published in channel/thread
+    """
+    import os as _os
+    import requests as _requests
+
+    SLACK_TOKEN = os.getenv("SLACK_BOT_TOKEN", "xoxb-11154311307111-11167834849814-Uq9Lk6vFSHBYb3QDQfDJBiLi")
+
+    body        = request.get_json(silent=True) or {}
+    xlsx_path   = (body.get("xlsx_path") or "").strip()
+    client_name = body.get("client_name", "Unknown")
+    q_type      = body.get("question_type", "query")
+    channel_id  = body.get("channel_id", "")
+    thread_ts   = body.get("thread_ts", "")
+
+    if not xlsx_path:
+        return _build_error_response("Missing xlsx_path.", 400)
+
+    # Jail to exports dir
+    export_dir = _os.path.realpath("./exports")
+    safe_path  = _os.path.realpath(_os.path.join(export_dir, _os.path.basename(xlsx_path)))
+    if not safe_path.startswith(export_dir) or not _os.path.isfile(safe_path):
+        return _build_error_response("File not found.", 404)
+
+    file_name = _os.path.basename(safe_path)
+    file_size = _os.path.getsize(safe_path)
+
+    headers_auth = {"Authorization": f"Bearer {SLACK_TOKEN}"}
+
+    # Step 1 — get upload URL
+    r1 = _requests.post(
+        "https://slack.com/api/files.getUploadURLExternal",
+        headers=headers_auth,
+        data={"filename": file_name, "length": file_size},
+        timeout=10,
+    )
+    d1 = r1.json()
+    if not d1.get("ok"):
+        log.error("getUploadURLExternal failed: %s", d1)
+        return _build_error_response(f"Slack upload step 1 failed: {d1.get('error')}", 502)
+
+    upload_url = d1["upload_url"]
+    file_id    = d1["file_id"]
+
+    # Step 2 — upload raw bytes
+    with open(safe_path, "rb") as fh:
+        r2 = _requests.post(
+            upload_url,
+            headers={"Content-Type": "application/octet-stream"},
+            data=fh,
+            timeout=30,
+        )
+    if r2.status_code != 200:
+        log.error("Binary upload failed: %s %s", r2.status_code, r2.text[:200])
+        return _build_error_response("Slack upload step 2 failed.", 502)
+
+    # Step 3 — complete and publish
+    payload = {
+        "files":           [{"id": file_id, "title": file_name}],
+        "channel_id":      channel_id,
+        "initial_comment": f"📎 Excel export — {client_name} · {q_type}",
+    }
+    if thread_ts:
+        payload["thread_ts"] = thread_ts
+
+    r3 = _requests.post(
+        "https://slack.com/api/files.completeUploadExternal",
+        headers={**headers_auth, "Content-Type": "application/json"},
+        json=payload,
+        timeout=10,
+    )
+    d3 = r3.json()
+    if not d3.get("ok"):
+        log.error("completeUploadExternal failed: %s", d3)
+        return _build_error_response(f"Slack upload step 3 failed: {d3.get('error')}", 502)
+
+    log.info("upload-to-slack  file=%s  channel=%s  file_id=%s", file_name, channel_id, file_id)
+    return jsonify({"ok": True, "file_id": file_id, "file_name": file_name}), 200
+
+
+@app.get("/download")
+def download():
+    """
+    GET /download?path=./exports/Check24_product_details_2025-05-21.xlsx
+
+    Serves the XLSX file produced by the agent as a binary attachment.
+    n8n calls this endpoint after /ask returns a non-null xlsx_path, then
+    uploads the binary to Slack using the Slack — Upload File node.
+
+    Security: only files inside EXPORT_DIR are served; any path traversal
+    attempt outside that folder is rejected with 400.
+    """
+    import os as _os
+    from flask import send_file
+
+    raw_path = request.args.get("path", "").strip()
+    if not raw_path:
+        return _build_error_response("Missing required query param: 'path'.", 400)
+
+    # Resolve and jail to EXPORT_DIR so callers can't walk the filesystem
+    export_dir = _os.path.realpath("./exports")
+    safe_path  = _os.path.realpath(
+        _os.path.join(export_dir, _os.path.basename(raw_path))
+    )
+    if not safe_path.startswith(export_dir):
+        return _build_error_response("Invalid path.", 400)
+
+    if not _os.path.isfile(safe_path):
+        log.warning("GET /download — file not found: %s", safe_path)
+        return _build_error_response(f"File not found: {_os.path.basename(raw_path)}", 404)
+
+    log.info("GET /download  file=%s", safe_path)
+    return send_file(
+        safe_path,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=_os.path.basename(safe_path),
+    )
 
 
 # ── 404 / 405 handlers ────────────────────────────────────────────────────────

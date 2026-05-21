@@ -1,1 +1,0 @@
-print(f"  FULL SQL: {sql}")
