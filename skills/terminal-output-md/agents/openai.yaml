@@ -1,0 +1,3 @@
+﻿display_name: Terminal Output to Markdown
+short_description: Convert Python terminal output into clean markdown notes
+default_prompt: Transform pasted Python terminal output into a structured markdown document. Preserve commands, stdout, stderr, tracebacks, and conclusions; use headings and code blocks, and keep the result ready to save as a .md file.
