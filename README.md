@@ -118,6 +118,7 @@ Project3/
 ├── requirements.txt         ← Python dependencies
 ├── n8n workflow/            ← n8n workflows defining a milestone
 ├── py for testing/          ← collection of python files used for testing steps
+├── Presentation/            ← .ppt Presentation (pitch for a client)
 └── screenshots/             ← screenshots used for documenting the steps taken
 
 ```
