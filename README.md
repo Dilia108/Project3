@@ -119,6 +119,7 @@ Project3/
 ├── n8n workflow/            ← n8n workflows defining a milestone
 ├── py for testing/          ← collection of python files used for testing steps
 ├── Presentation/            ← .ppt Presentation (pitch for a client)
+├── Demo video/              ← short video showing agent responding in slack
 └── screenshots/             ← screenshots used for documenting the steps taken
 
 ```
