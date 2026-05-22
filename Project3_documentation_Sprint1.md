@@ -6,9 +6,9 @@
 
 **Reason:** Jira software provides a free tier that can be setup specifically for working with scrum (atlassian.com/software/jira/free)
 
-* To invite a team member:
+* Link to the Kanban board:
 
-https://kam-agent.atlassian.net?continue=https%3A%2F%2Fkam-agent.atlassian.net%2Fwelcome%2Fsoftware&atlOrigin=eyJpIjoiNzk0ZGI0NjUxMTAxNGYwNzgxMzI4OTYyNThmMmE5NzgiLCJwIjoiaiJ9
+https://kam-agent.atlassian.net/jira/software/projects/SCRUM/boards/1
 
 **NOTE:** the project was adapted to be executed in 3 days.
 
